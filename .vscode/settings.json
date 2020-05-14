@@ -2,5 +2,15 @@
     "deno.enable": true,
     "[typescript]": {
         "editor.defaultFormatter": "axetroy.vscode-deno",
+        "editor.formatOnSave": false,
     },
+    "saveAndRun": {
+        "commands": [
+            {
+                "match": ".ts",
+                "cmd": "deno fmt",
+                "silent": true
+            }
+        ]
+    }
 }
