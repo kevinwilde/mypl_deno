@@ -1,21 +1,19 @@
 import { createLexer } from "./lexer.ts";
 import { createAST } from "./parser.ts";
-
-function prettyPrint(obj: any) {
-  console.log(JSON.stringify(obj, null, 2));
-}
+import { evaluate } from "./interpreter.ts";
+import { prettyPrint } from "./utils.ts";
 
 /// Test
-let lexer;
+function printTestCase(program: string) {
+  console.log("=========================================================");
+  const lexer = createLexer(program);
+  const ast = createAST(lexer);
+  console.log(prettyPrint(ast));
+  console.log((evaluate(ast)));
+  console.log("=========================================================");
+}
 
-lexer = createLexer("(let x 1)");
-prettyPrint(createAST(lexer));
-
-lexer = createLexer("  (let y (lambda (x) (succ x)))");
-prettyPrint(createAST(lexer));
-
-lexer = createLexer("  (let y (lambda (x) (+ 1 x)))");
-prettyPrint(createAST(lexer));
-
-lexer = createLexer("  (let y (lambda (x z) (+ z x)))");
-prettyPrint(createAST(lexer));
+printTestCase("(let x 1 x)");
+printTestCase("  (let y (lambda (x) (succ x)) y)");
+printTestCase("  (let y (lambda (x) (+ 1 x)) y)");
+printTestCase("  (let y (lambda (x z) (+ z x)) y)");

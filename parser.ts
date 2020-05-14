@@ -1,10 +1,14 @@
 import { Lexer } from "./lexer.ts";
+import { assert } from "./utils.ts";
 
-type Term =
-  | { type: "VAR"; name: string }
+export type Value =
   | { type: "INT"; val: number }
-  | { type: "BOOL"; val: boolean }
-  | { type: "LET"; name: string; val: Term }
+  | { type: "BOOL"; val: boolean };
+
+export type Term =
+  | Value
+  | { type: "VAR"; name: string }
+  | { type: "LET"; name: string; val: Term; body: Term }
   | { type: "ABS"; params: string[]; body: Term }
   | { type: "APP"; func: Term; args: Term[] };
 
@@ -17,7 +21,7 @@ export function createAST(lexer: Lexer): Term {
 
     switch (cur.type) {
       case "RPAREN":
-        return null;
+        throw new Error("Unexpected close paren");
       case "LET":
         throw new Error();
       case "LAMBDA":
@@ -27,9 +31,9 @@ export function createAST(lexer: Lexer): Term {
       case "FALSE":
         return { type: "BOOL", val: false };
       case "INT":
-        return { type: "INT", val: (cur as any).val };
+        return { type: "INT", val: cur.val };
       case "VAR":
-        return { type: "VAR", name: (cur as any).name };
+        return { type: "VAR", name: cur.name };
 
       case "LPAREN": {
         let nextToken = lexer.peek();
@@ -63,14 +67,22 @@ export function createAST(lexer: Lexer): Term {
               }
             }
             const body = createAST(lexer);
-            return { type: "ABS", params, body: body! };
+            const closeLambdaParen = lexer.nextToken();
+            assert(
+              closeLambdaParen !== null &&
+                closeLambdaParen.type === "RPAREN",
+            );
+            return { type: "ABS", params, body };
           }
           case "LET": {
             const let_ = lexer.nextToken();
             const name = lexer.nextToken();
             assert(name !== null && name.type === "VAR");
             const val = createAST(lexer);
-            return { type: "LET", name: (name as any).name, val: val! };
+            const body = createAST(lexer);
+            const closeLetParen = lexer.nextToken();
+            assert(closeLetParen !== null && closeLetParen.type === "RPAREN");
+            return { type: "LET", name: (name as any).name, val, body };
           }
           case "LPAREN":
           case "VAR": {
@@ -81,6 +93,7 @@ export function createAST(lexer: Lexer): Term {
               if (next === null) {
                 throw new Error();
               } else if (next.type === "RPAREN") {
+                const throwAway_ = lexer.nextToken();
                 break;
               } else {
                 args.push(createAST(lexer));
@@ -106,10 +119,4 @@ export function createAST(lexer: Lexer): Term {
     throw new Error("bad program");
   }
   return result;
-}
-
-function assert(cond: boolean, msg = ""): asserts cond is true {
-  if (!cond) {
-    throw new Error(`AssertionFailed: ${msg}`);
-  }
 }
