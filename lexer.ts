@@ -13,8 +13,8 @@ export type Lexer = { peek: () => Token | null; nextToken: () => Token | null };
 
 export function createLexer(s: string): Lexer {
   let i = 0;
-  let input = s.replace(/[\(\{\[]/g, " ( ")
-    .replace(/[\)\}\]]/g, " ) ")
+  let input = s.replace(/\(/g, " ( ")
+    .replace(/\)/g, " ) ")
     .split(/\s+/)
     .filter(Boolean);
   function charToToken(char: string): Token | null {

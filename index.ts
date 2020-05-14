@@ -11,7 +11,7 @@ let lexer;
 lexer = createLexer("(let x 1)");
 prettyPrint(createAST(lexer));
 
-lexer = createLexer( "  (let y (lambda (x) (succ x)))");
+lexer = createLexer("  (let y (lambda (x) (succ x)))");
 prettyPrint(createAST(lexer));
 
 lexer = createLexer("  (let y (lambda (x) (+ 1 x)))");
