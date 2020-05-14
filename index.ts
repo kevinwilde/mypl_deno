@@ -58,8 +58,8 @@ type Term =
   | { type: "INT"; val: number }
   | { type: "BOOL"; val: boolean }
   | { type: "LET"; name: string; val: Term }
-  | { type: "ABS"; param: string; body: Term }
-  | { type: "APP"; func: Term; arg: Term };
+  | { type: "ABS"; params: string[]; body: Term }
+  | { type: "APP"; func: Term; args: Term[] };
 
 function createAST(lexer: Lexer): Term {
   function getNextTerm(): Term | null {
@@ -98,10 +98,25 @@ function createAST(lexer: Lexer): Term {
             throw new Error();
           case "LAMBDA": {
             const lambda_ = lexer.nextToken();
-            const param = lexer.nextToken();
-            assert(param !== null && param.type === "VAR");
+            const params = [];
+            const paramsOpenParen = lexer.nextToken();
+            assert(
+              paramsOpenParen !== null && paramsOpenParen.type === "LPAREN",
+            );
+            while (true) {
+              const next = lexer.nextToken();
+              if (!next) {
+                throw new Error();
+              } else if (next.type === "RPAREN") {
+                break;
+              } else if (next.type === "VAR") {
+                params.push(next.name);
+              } else {
+                throw new Error();
+              }
+            }
             const body = createAST(lexer);
-            return { type: "ABS", param: (param as any).name, body: body! };
+            return { type: "ABS", params, body: body! };
           }
           case "LET": {
             const let_ = lexer.nextToken();
@@ -113,8 +128,18 @@ function createAST(lexer: Lexer): Term {
           case "LPAREN":
           case "VAR": {
             const func = createAST(lexer);
-            const arg = createAST(lexer);
-            return { type: "APP", func, arg };
+            const args = [];
+            while (true) {
+              const next = lexer.peek()
+              if (next === null) {
+                throw new Error()
+              } else if (next.type === "RPAREN") {
+                break
+              } else {
+                args.push(createAST(lexer));
+              }
+            }
+            return { type: "APP", func, args };
           }
           default: {
             const _exhaustiveCheck: never = nextToken;
@@ -142,19 +167,19 @@ function assert(cond: boolean, msg = ""): asserts cond is true {
   }
 }
 
+/// Test
 let lexer;
-// lexer = createLexer("(let x 1)");
-// prettyPrint(createTokenTree(lexer));
-// lexer = createLexer(" (let y (lambda x (+ x 1)))");
-// prettyPrint(createTokenTree(lexer));
-// lexer = createLexer("((lambda x (+ x 1)) 3)");
-// prettyPrint(createTokenTree(lexer));
 
 lexer = createLexer("(let x 1)");
-// console.log(collectAllTokens(lexer));
 prettyPrint(createAST(lexer));
-lexer = createLexer("  (let y (lambda x (succ x)))");
-// console.log(collectAllTokens(lexer));
+
+lexer = createLexer("  (let y (lambda (x) (succ x)))");
+prettyPrint(createAST(lexer));
+
+lexer = createLexer("  (let y (lambda (x) (+ 1 x)))");
+prettyPrint(createAST(lexer));
+
+lexer = createLexer("  (let y (lambda (x z) (+ z x)))");
 prettyPrint(createAST(lexer));
 
 function prettyPrint(obj: any) {
