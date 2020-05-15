@@ -77,13 +77,17 @@ export function createAST(lexer: Lexer): Term {
           }
           case "LET": {
             const let_ = lexer.nextToken();
-            const name = lexer.nextToken();
-            assert(name !== null && name.type === "VAR");
+            const varName = lexer.nextToken();
+            if (varName === null || varName.type !== "VAR") {
+              throw new Error(
+                "Expected a variable name to bind let expression to",
+              );
+            }
             const val = createAST(lexer);
             const body = createAST(lexer);
             const closeLetParen = lexer.nextToken();
             assert(closeLetParen !== null && closeLetParen.type === "RPAREN");
-            return { type: "LET", name: (name as any).name, val, body };
+            return { type: "LET", name: varName.name, val, body };
           }
           case "IF": {
             const if_ = lexer.nextToken();
