@@ -4,8 +4,7 @@ type Token =
   | { type: "LET" }
   | { type: "IF" }
   | { type: "LAMBDA" }
-  | { type: "TRUE" }
-  | { type: "FALSE" }
+  | { type: "BOOL"; val: boolean }
   | { type: "INT"; val: number }
   //   | { type: "STR"; val: string }
   | { type: "VAR"; name: string };
@@ -34,9 +33,9 @@ export function createLexer(s: string): Lexer {
       case "lambda":
         return { type: "LAMBDA" };
       case "#t":
-        return { type: "TRUE" };
+        return { type: "BOOL", val: true };
       case "#f":
-        return { type: "FALSE" };
+        return { type: "BOOL", val: false };
     }
     if (parseInt(char).toString() === char) {
       return { type: "INT", val: parseInt(char) };

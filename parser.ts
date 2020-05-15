@@ -27,10 +27,8 @@ export function createAST(lexer: Lexer): Term {
       case "IF":
       case "LAMBDA":
         throw new Error(`Unexpected token: ${cur.type}`);
-      case "TRUE":
-        return { type: "BOOL", val: true };
-      case "FALSE":
-        return { type: "BOOL", val: false };
+      case "BOOL":
+        return { type: "BOOL", val: cur.val };
       case "INT":
         return { type: "INT", val: cur.val };
       case "VAR":
@@ -40,14 +38,10 @@ export function createAST(lexer: Lexer): Term {
         let nextToken = lexer.peek();
         if (!nextToken) throw new Error();
         switch (nextToken.type) {
-          case "TRUE":
-            throw new Error();
-          case "FALSE":
-            throw new Error();
+          case "BOOL":
           case "INT":
-            throw new Error();
           case "RPAREN":
-            throw new Error();
+            throw new Error(`Unexpected token: ${cur.type}`);
           case "LAMBDA": {
             const lambda_ = lexer.nextToken();
             const params = [];
