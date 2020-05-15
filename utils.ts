@@ -5,5 +5,5 @@ export function assert(cond: boolean, msg = ""): asserts cond is true {
 }
 
 export function prettyPrint(obj: any) {
-  JSON.stringify(obj, null, 2);
+  return JSON.stringify(obj, null, 2);
 }
