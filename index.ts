@@ -20,3 +20,5 @@ printTestCase("  (let y (lambda (x z) (+ z x)) y)");
 printTestCase("  ((lambda (x) x) #t)");
 printTestCase("  ((lambda (x y) x) #t #f)");
 printTestCase("  ((lambda (x y) y) #t #f)");
+printTestCase("  ((lambda (x y z) (if x y z)) #t 1 2)");
+printTestCase("  ((lambda (x y z) (if x y z)) #f 1 2)");

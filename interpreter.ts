@@ -36,6 +36,13 @@ function interpretInEnv(term: Term, env: Environment): Value {
         .concat(env);
       return interpretInEnv(term.body, newEnv);
     }
+    case "IF": {
+      const condResult = interpretInEnv(term.cond, env);
+      if (condResult.type !== "BOOL") {
+        throw new Error("Expected condition to be a boolean expression");
+      }
+      return interpretInEnv(condResult.val ? term.then : term.else, env);
+    }
     case "APP": {
       const closure = interpretInEnv(term.func, env);
       const args = term.args.map((a) => interpretInEnv(a, env));

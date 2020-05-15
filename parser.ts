@@ -9,6 +9,7 @@ export type Term =
   | Value
   | { type: "VAR"; name: string }
   | { type: "LET"; name: string; val: Term; body: Term }
+  | { type: "IF"; cond: Term; then: Term; else: Term }
   | { type: "ABS"; params: string[]; body: Term }
   | { type: "APP"; func: Term; args: Term[] };
 
@@ -23,9 +24,9 @@ export function createAST(lexer: Lexer): Term {
       case "RPAREN":
         throw new Error("Unexpected close paren");
       case "LET":
-        throw new Error();
+      case "IF":
       case "LAMBDA":
-        throw new Error();
+        throw new Error(`Unexpected token: ${cur.type}`);
       case "TRUE":
         return { type: "BOOL", val: true };
       case "FALSE":
@@ -83,6 +84,15 @@ export function createAST(lexer: Lexer): Term {
             const closeLetParen = lexer.nextToken();
             assert(closeLetParen !== null && closeLetParen.type === "RPAREN");
             return { type: "LET", name: (name as any).name, val, body };
+          }
+          case "IF": {
+            const if_ = lexer.nextToken();
+            const cond = createAST(lexer);
+            const then = createAST(lexer);
+            const else_ = createAST(lexer);
+            const closeIfParen = lexer.nextToken();
+            assert(closeIfParen !== null && closeIfParen.type === "RPAREN");
+            return { type: "IF", cond, then, else: else_ };
           }
           case "LPAREN":
           case "VAR": {

@@ -2,6 +2,7 @@ type Token =
   | { type: "LPAREN" }
   | { type: "RPAREN" }
   | { type: "LET" }
+  | { type: "IF" }
   | { type: "LAMBDA" }
   | { type: "TRUE" }
   | { type: "FALSE" }
@@ -28,6 +29,8 @@ export function createLexer(s: string): Lexer {
         return { type: "RPAREN" };
       case "let":
         return { type: "LET" };
+      case "if":
+        return { type: "IF" };
       case "lambda":
         return { type: "LAMBDA" };
       case "#t":
