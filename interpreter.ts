@@ -31,6 +31,36 @@ function interpretInEnv(term: Term, env: Environment): Value {
       return { type: "CLOSURE", params: term.params, body: term.body, env };
     case "VAR":
       return lookupInEnv(term.name, env);
+    case "BIOP": {
+      const left = interpretInEnv(term.left, env);
+      const right = interpretInEnv(term.right, env);
+      switch (term.op) {
+        case "+": {
+          if (left.type !== "INT" || right.type !== "INT") {
+            throw new Error("Tried to apply + to non-number");
+          }
+          return { type: "INT", val: left.val + right.val };
+        }
+        case "-": {
+          if (left.type !== "INT" || right.type !== "INT") {
+            throw new Error("Tried to apply + to non-number");
+          }
+          return { type: "INT", val: left.val - right.val };
+        }
+        case "=": {
+          if (
+            left.type === right.type && left.type !== "CLOSURE" &&
+            right.type !== "CLOSURE"
+          ) {
+            return { type: "BOOL", val: left.val === right.val };
+          }
+          return { type: "BOOL", val: false };
+        }
+        default:
+          const _exhaustiveCheck: never = term.op;
+          throw new Error();
+      }
+    }
     case "LET": {
       const newEnv = [{ name: term.name, value: interpretInEnv(term.val, env) }]
         .concat(env);

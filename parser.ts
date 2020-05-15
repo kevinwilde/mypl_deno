@@ -8,6 +8,7 @@ export type Value =
 export type Term =
   | Value
   | { type: "VAR"; name: string }
+  | { type: "BIOP"; op: "+" | "-" | "="; left: Term; right: Term }
   | { type: "LET"; name: string; val: Term; body: Term }
   | { type: "IF"; cond: Term; then: Term; else: Term }
   | { type: "ABS"; params: string[]; body: Term }
@@ -26,6 +27,7 @@ export function createAST(lexer: Lexer): Term {
       case "LET":
       case "IF":
       case "LAMBDA":
+      case "OP":
         throw new Error(`Unexpected token: ${cur.type}`);
       case "BOOL":
         return { type: "BOOL", val: cur.val };
@@ -63,11 +65,23 @@ export function createAST(lexer: Lexer): Term {
             }
             const body = createAST(lexer);
             const closeLambdaParen = lexer.nextToken();
-            assert(
-              closeLambdaParen !== null &&
-                closeLambdaParen.type === "RPAREN",
-            );
+            assert(closeLambdaParen !== null, "Unexpected EOF");
+            assert(closeLambdaParen?.type === "RPAREN", "Unexpected token");
             return { type: "ABS", params, body };
+          }
+          case "OP": {
+            const op_ = lexer.nextToken();
+            switch (nextToken.op) {
+              case "+":
+              case "-":
+              case "=":
+                const left = createAST(lexer);
+                const right = createAST(lexer);
+                const closeOpParen = lexer.nextToken();
+                assert(closeOpParen !== null, "Unexpected EOF");
+                assert(closeOpParen?.type === "RPAREN", "Unexpected token");
+                return { type: "BIOP", op: nextToken.op, left, right };
+            }
           }
           case "LET": {
             const let_ = lexer.nextToken();
@@ -80,7 +94,8 @@ export function createAST(lexer: Lexer): Term {
             const val = createAST(lexer);
             const body = createAST(lexer);
             const closeLetParen = lexer.nextToken();
-            assert(closeLetParen !== null && closeLetParen.type === "RPAREN");
+            assert(closeLetParen !== null, "Unexpected EOF");
+            assert(closeLetParen?.type === "RPAREN", "Unexpected token");
             return { type: "LET", name: varName.name, val, body };
           }
           case "IF": {
@@ -89,7 +104,8 @@ export function createAST(lexer: Lexer): Term {
             const then = createAST(lexer);
             const else_ = createAST(lexer);
             const closeIfParen = lexer.nextToken();
-            assert(closeIfParen !== null && closeIfParen.type === "RPAREN");
+            assert(closeIfParen !== null, "Unexpected EOF");
+            assert(closeIfParen?.type === "RPAREN", "Unexpected token");
             return { type: "IF", cond, then, else: else_ };
           }
           case "LPAREN":
