@@ -1,18 +1,7 @@
 import { Term as ParserTerm, Value as ParserValue } from "./parser.ts";
 
-export function evaluate(ast: ParserTerm): string {
-  const result = interpretInEnv(ast, []);
-  switch (result.type) {
-    case "BOOL":
-      return result.val ? "#t" : "#f";
-    case "INT":
-      return result.val.toString();
-    case "CLOSURE":
-      return `Closure (${result.params.join(",")})`;
-    default:
-      const _exhaustiveCheck: never = result;
-      throw new Error();
-  }
+export function evaluate(ast: ParserTerm) {
+  return interpretInEnv(ast, []);
 }
 
 type Environment = { name: string; value: Value }[];
