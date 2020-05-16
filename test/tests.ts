@@ -18,6 +18,9 @@ function assertResult(
       case "INT":
         return expectedResult.type === "INT" &&
           actualResult.val === expectedResult.val;
+      case "STR":
+        return expectedResult.type === "STR" &&
+          actualResult.val === expectedResult.val;
       case "CLOSURE":
         return false; // TODO ?
       default:
@@ -36,9 +39,14 @@ function assertResult(
   }
 }
 
-Deno.test("defining a variable", () => {
+Deno.test("defining a variable (int)", () => {
   let program = "(let x 1 x)";
   assertResult(program, { type: "INT", val: 1 });
+});
+
+Deno.test("defining a variable (string)", () => {
+  let program = `(let x "hello" x)`;
+  assertResult(program, { type: "STR", val: `"hello"` });
 });
 
 Deno.test("calling a function", () => {

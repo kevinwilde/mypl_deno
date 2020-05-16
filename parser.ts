@@ -2,8 +2,9 @@ import { Lexer } from "./lexer.ts";
 import { assert } from "./utils.ts";
 
 export type Value =
+  | { type: "BOOL"; val: boolean }
   | { type: "INT"; val: number }
-  | { type: "BOOL"; val: boolean };
+  | { type: "STR"; val: string };
 
 export type Term =
   | Value
@@ -33,6 +34,8 @@ export function createAST(lexer: Lexer): Term {
         return { type: "BOOL", val: cur.val };
       case "INT":
         return { type: "INT", val: cur.val };
+      case "STR":
+        return { type: "STR", val: cur.val };
       case "VAR":
         return { type: "VAR", name: cur.name };
 
@@ -42,6 +45,7 @@ export function createAST(lexer: Lexer): Term {
         switch (nextToken.type) {
           case "BOOL":
           case "INT":
+          case "STR":
           case "RPAREN":
             throw new Error(`Unexpected token: ${cur.type}`);
           case "LAMBDA": {

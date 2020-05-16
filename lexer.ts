@@ -7,7 +7,7 @@ type Token =
   | { type: "OP"; op: "+" | "-" | "=" }
   | { type: "BOOL"; val: boolean }
   | { type: "INT"; val: number }
-  //   | { type: "STR"; val: string }
+  | { type: "STR"; val: string }
   | { type: "VAR"; name: string };
 
 export type Lexer = { peek: () => Token | null; nextToken: () => Token | null };
@@ -45,9 +45,9 @@ export function createLexer(s: string): Lexer {
     if (parseInt(char).toString() === char) {
       return { type: "INT", val: parseInt(char) };
     }
-    //   if (cur[0] === '"' && cur[cur.length - 1] === '"') {
-    //     return { type: "STR", val: cur };
-    //   }
+    if (char[0] === '"' && char[char.length - 1] === '"') {
+      return { type: "STR", val: char };
+    }
     return { type: "VAR", name: char };
   }
   return {

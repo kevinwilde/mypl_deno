@@ -14,6 +14,7 @@ function interpretInEnv(term: Term, env: Environment): Value {
   switch (term.type) {
     case "BOOL":
     case "INT":
+    case "STR":
     case "CLOSURE":
       return term;
     case "ABS":
