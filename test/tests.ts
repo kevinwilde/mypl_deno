@@ -130,3 +130,18 @@ Deno.test("first class functions", () => {
   `;
   assertResult(program, { type: "INT", val: 7 });
 });
+
+Deno.test("first class function with stdlib", () => {
+  let program = `
+  (let doTwice
+      (lambda (f x y) (f x (f x y)))
+      (doTwice + 5 8))
+  `;
+  assertResult(program, { type: "INT", val: 18 });
+  program = `
+  (let doTwice
+      (lambda (f x y) (f x (f x y)))
+      (doTwice string-concat "Be" " Rhexa"))
+  `;
+  assertResult(program, { type: "STR", val: "BeBe Rhexa" });
+});
