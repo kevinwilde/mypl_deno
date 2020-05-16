@@ -9,7 +9,6 @@ export type Value =
 export type Term =
   | Value
   | { type: "VAR"; name: string }
-  | { type: "BIOP"; op: "+" | "-" | "="; left: Term; right: Term }
   | { type: "IF"; cond: Term; then: Term; else: Term }
   | { type: "ABS"; params: string[]; body: Term }
   | { type: "APP"; func: Term; args: Term[] };
@@ -27,7 +26,6 @@ export function createAST(lexer: Lexer): Term {
       case "LET":
       case "IF":
       case "LAMBDA":
-      case "OP":
         throw new Error(`Unexpected token: ${cur.type}`);
       case "BOOL":
         return { type: "BOOL", val: cur.val };
@@ -71,20 +69,6 @@ export function createAST(lexer: Lexer): Term {
             assert(closeLambdaParen !== null, "Unexpected EOF");
             assert(closeLambdaParen?.type === "RPAREN", "Unexpected token");
             return { type: "ABS", params, body };
-          }
-          case "OP": {
-            const op_ = lexer.nextToken();
-            switch (nextToken.op) {
-              case "+":
-              case "-":
-              case "=":
-                const left = createAST(lexer);
-                const right = createAST(lexer);
-                const closeOpParen = lexer.nextToken();
-                assert(closeOpParen !== null, "Unexpected EOF");
-                assert(closeOpParen?.type === "RPAREN", "Unexpected token");
-                return { type: "BIOP", op: nextToken.op, left, right };
-            }
           }
           case "LET": {
             const let_ = lexer.nextToken();
