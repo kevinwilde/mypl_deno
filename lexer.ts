@@ -13,10 +13,12 @@ export type Lexer = { peek: () => Token | null; nextToken: () => Token | null };
 
 export function createLexer(s: string): Lexer {
   let i = 0;
-  let input = s.replace(/\(/g, " ( ")
+  const input = s.replace(/\(/g, " ( ")
     .replace(/\)/g, " ) ")
-    .split(/\s+/)
-    .filter(Boolean);
+    .match(/[^\s"]+|"([^"]*)"/g);
+  if (!input) {
+    throw new Error();
+  }
   function charToToken(char: string): Token | null {
     if (!char) {
       return null;
