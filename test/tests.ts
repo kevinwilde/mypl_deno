@@ -1,12 +1,7 @@
-import { assertEquals } from "https://deno.land/std/testing/asserts.ts";
 import { createLexer } from "../lexer.ts";
 import { createAST } from "../parser.ts";
 import { evaluate } from "../interpreter.ts";
 import { prettyPrint } from "../utils.ts";
-
-function evalProgram(program: string) {
-  return evaluate(createAST(createLexer(program)));
-}
 
 function assertResult(
   program: string,
@@ -76,10 +71,30 @@ Deno.test("subtraction", () => {
 });
 
 Deno.test("closure", () => {
-  let program = `(let addN
+  let program = `
+  (let addN
     (lambda (N) (lambda (x) (+ x N)))
     (let add1
          (addN 1)
-         (add1 42)))`;
+         (add1 42)))
+  `;
   assertResult(program, { type: "INT", val: 43 });
+});
+
+Deno.test("closure not fooled by later shadow - maintains env where defined", () => {
+  let program = `
+  (let add1
+      (let x 1 (lambda (y) (+ x y)))
+      (let x 2 (add1 42)))
+  `;
+  assertResult(program, { type: "INT", val: 43 });
+});
+
+Deno.test("shadowing", () => {
+  let program = `
+  (let add2
+      (let x 1 (let x 2 (lambda (y) (+ x y))))
+      (add2 42))
+  `;
+  assertResult(program, { type: "INT", val: 44 });
 });
