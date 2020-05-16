@@ -51,11 +51,6 @@ function interpretInEnv(term: Term, env: Environment): Value {
           throw new Error();
       }
     }
-    case "LET": {
-      const newEnv = [{ name: term.name, value: interpretInEnv(term.val, env) }]
-        .concat(env);
-      return interpretInEnv(term.body, newEnv);
-    }
     case "IF": {
       const condResult = interpretInEnv(term.cond, env);
       if (condResult.type !== "BOOL") {
