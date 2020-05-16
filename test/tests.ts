@@ -21,6 +21,7 @@ function assertResult(
       case "STR":
         return expectedResult.type === "STR" &&
           actualResult.val === expectedResult.val;
+      case "STDLIB_FUN":
       case "CLOSURE":
         return false; // TODO ?
       default:
@@ -46,7 +47,7 @@ Deno.test("defining a variable (int)", () => {
 
 Deno.test("defining a variable (string)", () => {
   let program = `(let x "hello" x)`;
-  assertResult(program, { type: "STR", val: `"hello"` });
+  assertResult(program, { type: "STR", val: "hello" });
 });
 
 Deno.test("calling a function", () => {
@@ -76,6 +77,18 @@ Deno.test("addition", () => {
 Deno.test("subtraction", () => {
   let program = " (let minus (lambda (x y) (- x y)) (minus 2 3))";
   assertResult(program, { type: "INT", val: -1 });
+});
+
+Deno.test("conditional with equality", () => {
+  let program = "((lambda (w x y z) (if (= w x) y z)) 42 42 1 2)";
+  assertResult(program, { type: "INT", val: 1 });
+  program = "((lambda (w x y z) (if (= w x) y z)) 42 43 1 2)";
+  assertResult(program, { type: "INT", val: 2 });
+});
+
+Deno.test("string-concat", () => {
+  let program = `(let x (string-concat "hello" "world") x)`;
+  assertResult(program, { type: "STR", val: "helloworld" });
 });
 
 Deno.test("closure", () => {

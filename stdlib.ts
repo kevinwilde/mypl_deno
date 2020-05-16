@@ -29,6 +29,14 @@ const STD_LIB: Record<string, DiscriminateUnion<Value, "type", "STDLIB_FUN">> =
         y: DiscriminateUnion<Value, "type", "INT">,
       ) => ({ type: "BOOL", val: x.val === y.val }),
     },
+    "string-concat": {
+      type: "STDLIB_FUN",
+      params: [{ type: "STR" }, { type: "STR" }],
+      impl: (
+        x: DiscriminateUnion<Value, "type", "STR">,
+        y: DiscriminateUnion<Value, "type", "STR">,
+      ) => ({ type: "STR", val: x.val + y.val }),
+    },
   };
 
 export function lookupInStdLib(

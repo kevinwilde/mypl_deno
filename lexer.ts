@@ -41,7 +41,7 @@ export function createLexer(s: string): Lexer {
       return { type: "INT", val: parseInt(char) };
     }
     if (char[0] === '"' && char[char.length - 1] === '"') {
-      return { type: "STR", val: char };
+      return { type: "STR", val: char.slice(1, char.length - 1) };
     }
     return { type: "VAR", name: char };
   }
