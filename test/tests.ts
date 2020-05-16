@@ -106,3 +106,14 @@ Deno.test("shadowing", () => {
   `;
   assertResult(program, { type: "INT", val: 44 });
 });
+
+Deno.test("first class functions", () => {
+  let program = `
+  (let doTwice
+      (lambda (f x) (f (f x)))
+      (let add1
+          (lambda (x) (+ x 1))
+          (doTwice add1 5)))
+  `;
+  assertResult(program, { type: "INT", val: 7 });
+});
