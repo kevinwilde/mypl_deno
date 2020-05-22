@@ -145,3 +145,30 @@ Deno.test("first class function with stdlib", () => {
   `;
   assertResult(program, { type: "STR", val: "BeBe Rhexa" });
 });
+
+Deno.test("naive factorial", () => {
+  const fix = `
+    (lambda (f)
+      ((lambda (x)
+          (f (lambda (y) ((x x) y))))
+        (lambda (x)
+          (f (lambda (y) ((x x) y))))))
+  `;
+  const g = `
+    (lambda (fct)
+      (lambda (n)
+        (if (= n 0)
+          1
+          (* n (fct (- n 1))))))
+  `;
+  let program = `(let factorial (${fix} ${g}) (factorial 0))`;
+  assertResult(program, { type: "INT", val: 1 });
+  program = `(let factorial (${fix} ${g}) (factorial 1))`;
+  assertResult(program, { type: "INT", val: 1 });
+  program = `(let factorial (${fix} ${g}) (factorial 2))`;
+  assertResult(program, { type: "INT", val: 2 });
+  program = `(let factorial (${fix} ${g}) (factorial 3))`;
+  assertResult(program, { type: "INT", val: 6 });
+  program = `(let factorial (${fix} ${g}) (factorial 4))`;
+  assertResult(program, { type: "INT", val: 24 });
+});

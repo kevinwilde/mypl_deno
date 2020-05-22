@@ -21,6 +21,14 @@ const STD_LIB: Record<string, DiscriminateUnion<Value, "type", "STDLIB_FUN">> =
         y: DiscriminateUnion<Value, "type", "INT">,
       ) => ({ type: "INT", val: x.val - y.val }),
     },
+    "*": {
+      type: "STDLIB_FUN",
+      params: [{ type: "INT" }, { type: "INT" }],
+      impl: (
+        x: DiscriminateUnion<Value, "type", "INT">,
+        y: DiscriminateUnion<Value, "type", "INT">,
+      ) => ({ type: "INT", val: x.val * y.val }),
+    },
     "=": {
       type: "STDLIB_FUN",
       params: [{ type: "INT" }, { type: "INT" }],
