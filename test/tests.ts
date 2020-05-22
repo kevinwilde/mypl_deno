@@ -172,3 +172,34 @@ Deno.test("naive factorial", () => {
   program = `(let factorial (${fix} ${g}) (factorial 4))`;
   assertResult(program, { type: "INT", val: 24 });
 });
+
+Deno.test("naive fibonacci", () => {
+  const fix = `
+    (lambda (f)
+      ((lambda (x)
+          (f (lambda (y) ((x x) y))))
+        (lambda (x)
+          (f (lambda (y) ((x x) y))))))
+  `;
+  const g = `
+    (lambda (fib)
+      (lambda (n)
+        (if (= n 0)
+          1
+          (if (= n 1)
+            1
+            (+ (fib (- n 1)) (fib (- n 2)))))))
+  `;
+  let program = `(let fibonacci (${fix} ${g}) (fibonacci 0))`;
+  assertResult(program, { type: "INT", val: 1 });
+  program = `(let fibonacci (${fix} ${g}) (fibonacci 1))`;
+  assertResult(program, { type: "INT", val: 1 });
+  program = `(let fibonacci (${fix} ${g}) (fibonacci 2))`;
+  assertResult(program, { type: "INT", val: 2 });
+  program = `(let fibonacci (${fix} ${g}) (fibonacci 3))`;
+  assertResult(program, { type: "INT", val: 3 });
+  program = `(let fibonacci (${fix} ${g}) (fibonacci 4))`;
+  assertResult(program, { type: "INT", val: 5 });
+  program = `(let fibonacci (${fix} ${g}) (fibonacci 5))`;
+  assertResult(program, { type: "INT", val: 8 });
+});
