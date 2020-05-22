@@ -35,6 +35,11 @@ function interpretInEnv(term: Term, env: Environment): Value {
       }
       return interpretInEnv(condResult.val ? term.then : term.else, env);
     }
+    case "LET": {
+      const newEnv = [{ name: term.name, value: interpretInEnv(term.val, env) }]
+        .concat(env);
+      return interpretInEnv(term.body, newEnv);
+    }
     case "APP": {
       const closure = interpretInEnv(term.func, env);
       const args = term.args.map((a) => interpretInEnv(a, env));
