@@ -210,31 +210,31 @@ Deno.test("shadowing", () => {
   assertResult(program, { tag: "TmInt", val: 44 });
 });
 
-// Deno.test("first class functions", () => {
-//   let program = `
-//   (let doTwice
-//       (lambda (f x) (f (f x)))
-//       (let add1
-//           (lambda (x) (+ x 1))
-//           (doTwice add1 5)))
-//   `;
-//   assertResult(program, { tag: "TmInt", val: 7 });
-// });
+Deno.test("first class functions", () => {
+  let program = `
+  (let doTwice
+      (lambda (f:(int)->int x:int) (f (f x)))
+      (let add1
+          (lambda (x:int) (+ x 1))
+          (doTwice add1 5)))
+  `;
+  assertResult(program, { tag: "TmInt", val: 7 });
+});
 
-// Deno.test("first class function with stdlib", () => {
-//   let program = `
-//   (let doTwice
-//       (lambda (f x y) (f x (f x y)))
-//       (doTwice + 5 8))
-//   `;
-//   assertResult(program, { tag: "TmInt", val: 18 });
-//   program = `
-//   (let doTwice
-//       (lambda (f x y) (f x (f x y)))
-//       (doTwice string-concat "Be" " Rhexa"))
-//   `;
-//   assertResult(program, { tag: "TmStr", val: "BeBe Rhexa" });
-// });
+Deno.test("first class function with stdlib", () => {
+  let program = `
+  (let doTwice
+      (lambda (f:(int int)->int x:int y:int) (f x (f x y)))
+      (doTwice + 5 8))
+  `;
+  assertResult(program, { tag: "TmInt", val: 18 });
+  program = `
+  (let doTwice
+      (lambda (f:(str str)->str x:str y:str) (f x (f x y)))
+      (doTwice string-concat "Be" " Rhexa"))
+  `;
+  assertResult(program, { tag: "TmStr", val: "BeBe Rhexa" });
+});
 
 // Deno.test("naive factorial", () => {
 //   const fix = `

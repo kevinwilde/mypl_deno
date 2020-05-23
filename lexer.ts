@@ -1,6 +1,8 @@
 type Token =
   | { tag: "LPAREN" }
   | { tag: "RPAREN" }
+  | { tag: "COLON" }
+  | { tag: "ARROW" }
   | { tag: "LET" }
   | { tag: "IF" }
   | { tag: "LAMBDA" }
@@ -38,12 +40,24 @@ export function createLexer(s: string): Lexer {
       // Handle parens
       char += input[j];
       j++;
+    } else if (input[j] === ":") {
+      // Handle colon
+      char += input[j];
+      j++;
+    } else if (input[j] === "-" && input[j + 1] === ">") {
+      // Handle arrow
+      char += input[j];
+      j++;
+      char += input[j];
+      j++;
     } else {
       // Handle all other tokens
       // chars which signal end of token:
       // - whitespace
       // - parens
-      while (j < input.length && !/(\s|\(|\))/.test(input[j])) {
+      // - colon
+      // don't need arrow since it can only come after paren
+      while (j < input.length && !/(\s|\(|\)|\:)/.test(input[j])) {
         char += input[j];
         j++;
       }
@@ -62,6 +76,10 @@ export function createLexer(s: string): Lexer {
           return { tag: "LPAREN" };
         case ")":
           return { tag: "RPAREN" };
+        case ":":
+          return { tag: "COLON" };
+        case "->":
+          return { tag: "ARROW" };
         case "let":
           return { tag: "LET" };
         case "if":

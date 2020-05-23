@@ -24,6 +24,8 @@ export function createAST(lexer: Lexer): Term {
 
     switch (cur.tag) {
       case "RPAREN":
+      case "COLON":
+      case "ARROW":
       case "LET":
       case "IF":
       case "LAMBDA":
@@ -42,6 +44,8 @@ export function createAST(lexer: Lexer): Term {
         if (!nextToken) throw new Error();
         switch (nextToken.tag) {
           case "RPAREN":
+          case "COLON":
+          case "ARROW":
           case "BOOL":
           case "INT":
           case "STR":
@@ -60,10 +64,14 @@ export function createAST(lexer: Lexer): Term {
               } else if (next.tag === "RPAREN") {
                 break;
               } else if (next.tag === "IDEN") {
-                // TODO error handling
-                // TODO should prob be handled in lexer
-                const [varName, typeAnn] = next.name.split(":");
-                params.push({ name: varName, typeAnn: typeAnnToType(typeAnn) });
+                const colon = lexer.nextToken();
+                assert(colon !== null, "Unexpected EOF");
+                assert(
+                  colon?.tag === "COLON",
+                  `Unexpected token: expected \`:\` but got ${colon?.tag}`,
+                );
+                const typeAnn = parseTypeAnn(lexer);
+                params.push({ name: next.name, typeAnn });
               } else {
                 throw new Error();
               }
@@ -146,15 +154,57 @@ export function createAST(lexer: Lexer): Term {
   return result;
 }
 
-function typeAnnToType(ann: string): Type {
-  switch (ann) {
-    case "bool":
-      return { tag: "TyBool" };
-    case "int":
-      return { tag: "TyInt" };
-    case "str":
-      return { tag: "TyStr" };
-    default:
-      throw new Error(`Unknown type: ${ann}`);
+function parseTypeAnn(lexer: Lexer): Type {
+  const cur = lexer.nextToken();
+  if (!cur) {
+    throw new Error("Unexpected EOF");
+  }
+  switch (cur.tag) {
+    case "RPAREN":
+    case "COLON":
+    case "ARROW":
+    case "LET":
+    case "IF":
+    case "LAMBDA":
+    case "INT":
+    case "BOOL":
+    case "STR":
+      throw new Error(`Unexpected token: ${cur.tag}`);
+    case "IDEN": {
+      switch (cur.name) {
+        case "bool":
+          return { tag: "TyBool" };
+        case "int":
+          return { tag: "TyInt" };
+        case "str":
+          return { tag: "TyStr" };
+        default:
+          throw new Error(`Unknown type: ${cur.name}`);
+      }
+    }
+    case "LPAREN": {
+      const paramTypes = [];
+      while (lexer.peek() && lexer.peek()?.tag !== "RPAREN") {
+        paramTypes.push(parseTypeAnn(lexer));
+      }
+      const rparen_ = lexer.nextToken();
+      assert(rparen_ !== null, "Unexpected EOF");
+      assert(
+        rparen_?.tag === "RPAREN",
+        `Unexpected token: expected \`)\` but got ${rparen_?.tag}`,
+      );
+      const arrow = lexer.nextToken();
+      assert(arrow !== null, "Unexpected EOF");
+      assert(
+        arrow?.tag === "ARROW",
+        `Unexpected token: expected \`->\` but got ${arrow?.tag}`,
+      );
+      const returnType = parseTypeAnn(lexer);
+      return { tag: "TyArrow", paramTypes, returnType };
+    }
+    default: {
+      const _exhaustiveCheck: never = cur;
+      throw new Error();
+    }
   }
 }
