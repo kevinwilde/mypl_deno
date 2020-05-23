@@ -100,14 +100,14 @@ Deno.test("conditionals", () => {
 });
 
 Deno.test("[TypeError] conditionals", () => {
-  let program = "((lambda (x:bool y:int z:int) (if x y z)) 1 2 3)";
+  let program = "((lambda (x: bool y: int z : int) (if x y z)) 1 2 3)";
   expectTypeError(program);
-  program = `((lambda (x:bool y:int z:int) (if x y z)) #f 1 "hi")`;
+  program = `((lambda (x: bool y :int z:int) (if x y z)) #f 1 "hi")`;
   expectTypeError(program);
 });
 
 Deno.test("addition", () => {
-  let program = " (let plus (lambda (x:int y:int) (+ x y)) (plus 2 3))";
+  let program = " (let plus (lambda (x: int y :int) (+ x y)) (plus 2 3))";
   assertResult(program, { tag: "TmInt", val: 5 });
 });
 
@@ -213,12 +213,31 @@ Deno.test("shadowing", () => {
 Deno.test("first class functions", () => {
   let program = `
   (let doTwice
-      (lambda (f:(int)->int x:int) (f (f x)))
+      (lambda (f : ( int ) -> int x: int) (f (f x)))
       (let add1
           (lambda (x:int) (+ x 1))
           (doTwice add1 5)))
   `;
   assertResult(program, { tag: "TmInt", val: 7 });
+});
+
+Deno.test("[TypeError] first class functions", () => {
+  let program = `
+  (let doTwice
+      (lambda (f : ( int ) -> int x: int) (f (f x)))
+      (let add1
+          (lambda (x:int) (+ x 1))
+          (doTwice add1 "hi")))
+  `;
+  expectTypeError(program);
+  program = `
+  (let doTwice
+      (lambda (f : ( int ) -> int x: int) (f (f x)))
+      (let add1
+          (lambda (x:str) (string-concat x "world"))
+          (doTwice add1 "hi")))
+  `;
+  expectTypeError(program);
 });
 
 Deno.test("first class function with stdlib", () => {
@@ -234,6 +253,33 @@ Deno.test("first class function with stdlib", () => {
       (doTwice string-concat "Be" " Rhexa"))
   `;
   assertResult(program, { tag: "TmStr", val: "BeBe Rhexa" });
+});
+
+Deno.test("[TypeError] first class functions", () => {
+  let program = `
+  (let doTwice
+    (lambda (f:(int int)->int x:int y:int) (f x (f x y)))
+    (doTwice string-concat 5 8))
+  `;
+  expectTypeError(program);
+  program = `
+  (let doTwice
+    (lambda (f:(int int)->int x:int y:int) (f x (f x y)))
+    (doTwice + 5 "hi"))
+  `;
+  expectTypeError(program);
+  program = `
+  (let doTwice
+    (lambda (f:(str str)->str x:str y:str) (f x (f x y)))
+    (doTwice + "Be" " Rhexa"))
+  `;
+  expectTypeError(program);
+  program = `
+  (let doTwice
+    (lambda (f:(str str)->str x:str y:str) (f x (f x y)))
+    (doTwice string-concat 2 " Rhexa"))
+  `;
+  expectTypeError(program);
 });
 
 // Deno.test("naive factorial", () => {
