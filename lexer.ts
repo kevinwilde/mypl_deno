@@ -1,13 +1,13 @@
 type Token =
-  | { type: "LPAREN" }
-  | { type: "RPAREN" }
-  | { type: "LET" }
-  | { type: "IF" }
-  | { type: "LAMBDA" }
-  | { type: "BOOL"; val: boolean }
-  | { type: "INT"; val: number }
-  | { type: "STR"; val: string }
-  | { type: "VAR"; name: string };
+  | { tag: "LPAREN" }
+  | { tag: "RPAREN" }
+  | { tag: "LET" }
+  | { tag: "IF" }
+  | { tag: "LAMBDA" }
+  | { tag: "BOOL"; val: boolean }
+  | { tag: "INT"; val: number }
+  | { tag: "STR"; val: string }
+  | { tag: "VAR"; name: string };
 
 export type Lexer = { peek: () => Token | null; nextToken: () => Token | null };
 
@@ -25,27 +25,27 @@ export function createLexer(s: string): Lexer {
     }
     switch (char) {
       case "(":
-        return { type: "LPAREN" };
+        return { tag: "LPAREN" };
       case ")":
-        return { type: "RPAREN" };
+        return { tag: "RPAREN" };
       case "let":
-        return { type: "LET" };
+        return { tag: "LET" };
       case "if":
-        return { type: "IF" };
+        return { tag: "IF" };
       case "lambda":
-        return { type: "LAMBDA" };
+        return { tag: "LAMBDA" };
       case "#t":
-        return { type: "BOOL", val: true };
+        return { tag: "BOOL", val: true };
       case "#f":
-        return { type: "BOOL", val: false };
+        return { tag: "BOOL", val: false };
     }
     if (parseInt(char).toString() === char) {
-      return { type: "INT", val: parseInt(char) };
+      return { tag: "INT", val: parseInt(char) };
     }
     if (char[0] === '"' && char[char.length - 1] === '"') {
-      return { type: "STR", val: char.slice(1, char.length - 1) };
+      return { tag: "STR", val: char.slice(1, char.length - 1) };
     }
-    return { type: "VAR", name: char };
+    return { tag: "VAR", name: char };
   }
   return {
     peek: () => {

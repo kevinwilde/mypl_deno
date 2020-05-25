@@ -2,16 +2,16 @@ import { Lexer } from "./lexer.ts";
 import { assert } from "./utils.ts";
 
 export type Value =
-  | { type: "BOOL"; val: boolean }
-  | { type: "INT"; val: number }
-  | { type: "STR"; val: string };
+  | { tag: "BOOL"; val: boolean }
+  | { tag: "INT"; val: number }
+  | { tag: "STR"; val: string };
 
 export type Term =
   | Value
-  | { type: "VAR"; name: string }
-  | { type: "IF"; cond: Term; then: Term; else: Term }
-  | { type: "ABS"; params: string[]; body: Term }
-  | { type: "APP"; func: Term; args: Term[] };
+  | { tag: "VAR"; name: string }
+  | { tag: "IF"; cond: Term; then: Term; else: Term }
+  | { tag: "ABS"; params: string[]; body: Term }
+  | { tag: "APP"; func: Term; args: Term[] };
 
 export function createAST(lexer: Lexer): Term {
   function getNextTerm(): Term | null {
@@ -20,45 +20,45 @@ export function createAST(lexer: Lexer): Term {
       throw new Error("Unexpected EOF");
     }
 
-    switch (cur.type) {
+    switch (cur.tag) {
       case "RPAREN":
         throw new Error("Unexpected close paren");
       case "LET":
       case "IF":
       case "LAMBDA":
-        throw new Error(`Unexpected token: ${cur.type}`);
+        throw new Error(`Unexpected token: ${cur.tag}`);
       case "BOOL":
-        return { type: "BOOL", val: cur.val };
+        return { tag: "BOOL", val: cur.val };
       case "INT":
-        return { type: "INT", val: cur.val };
+        return { tag: "INT", val: cur.val };
       case "STR":
-        return { type: "STR", val: cur.val };
+        return { tag: "STR", val: cur.val };
       case "VAR":
-        return { type: "VAR", name: cur.name };
+        return { tag: "VAR", name: cur.name };
 
       case "LPAREN": {
         let nextToken = lexer.peek();
         if (!nextToken) throw new Error();
-        switch (nextToken.type) {
+        switch (nextToken.tag) {
           case "BOOL":
           case "INT":
           case "STR":
           case "RPAREN":
-            throw new Error(`Unexpected token: ${cur.type}`);
+            throw new Error(`Unexpected token: ${cur.tag}`);
           case "LAMBDA": {
             const lambda_ = lexer.nextToken();
             const params = [];
             const paramsOpenParen = lexer.nextToken();
             assert(
-              paramsOpenParen !== null && paramsOpenParen.type === "LPAREN",
+              paramsOpenParen !== null && paramsOpenParen.tag === "LPAREN",
             );
             while (true) {
               const next = lexer.nextToken();
               if (!next) {
                 throw new Error();
-              } else if (next.type === "RPAREN") {
+              } else if (next.tag === "RPAREN") {
                 break;
-              } else if (next.type === "VAR") {
+              } else if (next.tag === "VAR") {
                 params.push(next.name);
               } else {
                 throw new Error();
@@ -67,13 +67,13 @@ export function createAST(lexer: Lexer): Term {
             const body = createAST(lexer);
             const closeLambdaParen = lexer.nextToken();
             assert(closeLambdaParen !== null, "Unexpected EOF");
-            assert(closeLambdaParen?.type === "RPAREN", "Unexpected token");
-            return { type: "ABS", params, body };
+            assert(closeLambdaParen?.tag === "RPAREN", "Unexpected token");
+            return { tag: "ABS", params, body };
           }
           case "LET": {
             const let_ = lexer.nextToken();
             const varName = lexer.nextToken();
-            if (varName === null || varName.type !== "VAR") {
+            if (varName === null || varName.tag !== "VAR") {
               throw new Error(
                 "Expected a variable name to bind let expression to",
               );
@@ -82,10 +82,10 @@ export function createAST(lexer: Lexer): Term {
             const body = createAST(lexer);
             const closeLetParen = lexer.nextToken();
             assert(closeLetParen !== null, "Unexpected EOF");
-            assert(closeLetParen?.type === "RPAREN", "Unexpected token");
+            assert(closeLetParen?.tag === "RPAREN", "Unexpected token");
             return {
-              type: "APP",
-              func: { type: "ABS", params: [varName.name], body },
+              tag: "APP",
+              func: { tag: "ABS", params: [varName.name], body },
               args: [val],
             };
           }
@@ -96,8 +96,8 @@ export function createAST(lexer: Lexer): Term {
             const else_ = createAST(lexer);
             const closeIfParen = lexer.nextToken();
             assert(closeIfParen !== null, "Unexpected EOF");
-            assert(closeIfParen?.type === "RPAREN", "Unexpected token");
-            return { type: "IF", cond, then, else: else_ };
+            assert(closeIfParen?.tag === "RPAREN", "Unexpected token");
+            return { tag: "IF", cond, then, else: else_ };
           }
           case "LPAREN":
           case "VAR": {
@@ -107,14 +107,14 @@ export function createAST(lexer: Lexer): Term {
               const next = lexer.peek();
               if (next === null) {
                 throw new Error();
-              } else if (next.type === "RPAREN") {
+              } else if (next.tag === "RPAREN") {
                 const throwAway_ = lexer.nextToken();
                 break;
               } else {
                 args.push(createAST(lexer));
               }
             }
-            return { type: "APP", func, args };
+            return { tag: "APP", func, args };
           }
           default: {
             const _exhaustiveCheck: never = nextToken;
