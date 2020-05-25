@@ -1,5 +1,6 @@
 import { Term } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
+import { TypeError } from "./exceptions.ts";
 
 export type Type =
   | { tag: "TyBool" }
@@ -14,7 +15,7 @@ export function typeCheck(term: Term) {
 }
 
 function getTypeOf(term: Term, ctx: Context): Type {
-  switch (term.tag) {
+  switch (term.term.tag) {
     case "TmBool":
       return { tag: "TyBool" };
     case "TmInt":
@@ -22,60 +23,76 @@ function getTypeOf(term: Term, ctx: Context): Type {
     case "TmStr":
       return { tag: "TyStr" };
     case "TmVar":
-      return getTypeFromContext(ctx, term.name);
+      return getTypeFromContext(ctx, term.term.name);
     case "TmIf": {
-      const condType = getTypeOf(term.cond, ctx);
+      const condType = getTypeOf(term.term.cond, ctx);
       if (condType.tag !== "TyBool") {
-        throw new Error("guard of conditional not a boolean");
+        throw new TypeError(
+          `Expected guard of conditional to be a boolean but got ${condType.tag}`,
+          term.term.cond.info,
+        );
       }
-      const thenType = getTypeOf(term.then, ctx);
-      const elseType = getTypeOf(term.else, ctx);
+      const thenType = getTypeOf(term.term.then, ctx);
+      const elseType = getTypeOf(term.term.else, ctx);
       if (!typesAreEquiv(thenType, elseType)) {
-        throw new Error("branches of conditional not the same type");
+        throw new TypeError(
+          `Expected branches of conditional to be the same type but got ${thenType.tag} and ${elseType.tag}`,
+          {
+            startIdx: term.term.then.info.startIdx,
+            endIdx: term.term.else.info.endIdx,
+          },
+        );
       }
       return thenType;
     }
     case "TmLet": {
       return getTypeOf(
-        term.body,
-        [{ name: term.name, type: getTypeOf(term.val, ctx) }].concat(ctx),
+        term.term.body,
+        [{ name: term.term.name, type: getTypeOf(term.term.val, ctx) }].concat(
+          ctx,
+        ),
       );
     }
     case "TmAbs": {
-      const newBindings = term.params.map((p) => ({
+      const newBindings = term.term.params.map((p) => ({
         name: p.name,
         type: p.typeAnn,
       }));
       return {
         tag: "TyArrow",
         paramTypes: newBindings.map((b) => b.type),
-        returnType: getTypeOf(term.body, newBindings.concat(ctx)),
+        returnType: getTypeOf(term.term.body, newBindings.concat(ctx)),
       };
     }
     case "TmApp": {
-      const funcType = getTypeOf(term.func, ctx);
+      const funcType = getTypeOf(term.term.func, ctx);
       if (funcType.tag !== "TyArrow") {
-        throw new Error("arrow type expected");
-      }
-      if (term.args.length !== funcType.paramTypes.length) {
-        throw new Error(
-          `arity mismatch: expected ${funcType.paramTypes.length} arguments, but got ${term.args.length}`,
+        throw new TypeError(
+          `Expected arrow type but got ${funcType.tag}`,
+          term.term.func.info,
         );
       }
-      const argTypes = term.args.map((arg) => getTypeOf(arg, ctx));
+      if (term.term.args.length !== funcType.paramTypes.length) {
+        throw new TypeError(
+          `arity mismatch: expected ${funcType.paramTypes.length} arguments, but got ${term.term.args.length}`,
+          term.term.args[term.term.args.length - 1].info,
+        );
+      }
+      const argTypes = term.term.args.map((arg) => getTypeOf(arg, ctx));
       for (let i = 0; i < argTypes.length; i++) {
         if (!typesAreEquiv(argTypes[i], funcType.paramTypes[i])) {
-          throw new Error(
-            `TypeError: parameter type mismatch: expected type ${
+          throw new TypeError(
+            `parameter type mismatch: expected type ${
               funcType.paramTypes[i].tag
             }, but got ${argTypes[i].tag}`,
+            term.term.args[i].info,
           );
         }
       }
       return funcType.returnType;
     }
     default: {
-      const _exhaustiveCheck: never = term;
+      const _exhaustiveCheck: never = term.term;
       throw new Error();
     }
   }

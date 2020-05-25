@@ -2,14 +2,47 @@ import { createLexer } from "./lexer.ts";
 import { createAST } from "./parser.ts";
 import { evaluate } from "./interpreter.ts";
 import { prettyPrint } from "./utils.ts";
+import { MyPLError } from "./exceptions.ts";
+import { typeCheck } from "./typechecker.ts";
 
 /// Test
 function printTestCase(program: string) {
   console.log("=========================================================");
   const lexer = createLexer(program);
   const ast = createAST(lexer);
-  console.log(prettyPrint(ast));
+  // console.log(prettyPrint(ast));
+  const _ = typeCheck(ast);
   console.log((evaluate(ast)));
+  console.log("=========================================================");
+}
+
+function printErrorTestCase(program: string) {
+  console.log("=========================================================");
+  try {
+    const lexer = createLexer(program);
+    const ast = createAST(lexer);
+    // console.log(prettyPrint(ast));
+    const _ = typeCheck(ast);
+    console.log((evaluate(ast)));
+    throw new Error("Program didn't error");
+  } catch (e) {
+    if (e instanceof MyPLError) {
+      console.log(e.name);
+      console.log(e.message);
+      if (e.sourceInfo) {
+        console.log(
+          program.substring(e.sourceInfo.startIdx - 3, e.sourceInfo.endIdx + 3),
+        );
+        console.log(
+          " ".repeat(3) +
+            ("^".repeat(e.sourceInfo.endIdx - e.sourceInfo.startIdx)) +
+            " ".repeat(3),
+        );
+      }
+    } else {
+      throw e;
+    }
+  }
   console.log("=========================================================");
 }
 
@@ -31,3 +64,12 @@ printTestCase(
              (addN 1)
              (add1 42)))`,
 );
+
+printErrorTestCase("(let x");
+printErrorTestCase("((lambda (x: bool) x) 1)");
+printErrorTestCase("(if 1 2 3)");
+printErrorTestCase("(if #t #f 3)");
+printErrorTestCase(`(let plus (lambda (x:int y:int) (+ x y)) (plus 3))`);
+printErrorTestCase(`(let plus (lambda (x:int y:int) (+ x y)) (plus "hi" 3))`);
+printErrorTestCase(`(let plus (lambda (x:int y:int) (+ y)) (plus 2 3))`);
+printErrorTestCase(`(let plus (lambda (x:int y:int) (+ "hi" y)) (plus 2 3))`);

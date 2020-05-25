@@ -1,15 +1,22 @@
+export type SourceInfo = { startIdx: number; endIdx: number };
+
 type Token =
-  | { tag: "LPAREN" }
-  | { tag: "RPAREN" }
-  | { tag: "COLON" }
-  | { tag: "ARROW" }
-  | { tag: "LET" }
-  | { tag: "IF" }
-  | { tag: "LAMBDA" }
-  | { tag: "BOOL"; val: boolean }
-  | { tag: "INT"; val: number }
-  | { tag: "STR"; val: string }
-  | { tag: "IDEN"; name: string };
+  & { info: SourceInfo }
+  & {
+    token: (
+      | { tag: "LPAREN" }
+      | { tag: "RPAREN" }
+      | { tag: "COLON" }
+      | { tag: "ARROW" }
+      | { tag: "LET" }
+      | { tag: "IF" }
+      | { tag: "LAMBDA" }
+      | { tag: "BOOL"; val: boolean }
+      | { tag: "INT"; val: number }
+      | { tag: "STR"; val: string }
+      | { tag: "IDEN"; name: string }
+    );
+  };
 
 export type Lexer = { peek: () => Token | null; nextToken: () => Token | null };
 
@@ -17,15 +24,18 @@ export function createLexer(s: string): Lexer {
   let i = 0;
   const input = s.trim();
 
-  function calculateNextToken(): {
-    token: Token | null;
-    nextTokenStart: number;
-  } {
-    if (i >= input.length) {
-      return { token: null, nextTokenStart: i };
-    }
-    let char = "";
+  function calculateNextToken(): Token | null {
     let j = i;
+    // Eat up extra whitespace before token
+    while (j < input.length && /\s/.test(input[j])) {
+      j++;
+    }
+    if (j >= input.length) {
+      return null;
+    }
+
+    let char = "";
+    let startIdx = j;
     if (input[j] === '"') {
       // Handle strings
       char += input[j];
@@ -62,12 +72,8 @@ export function createLexer(s: string): Lexer {
         j++;
       }
     }
-    // Eat up extra whitespace before next token
-    while (j < input.length && /\s/.test(input[j])) {
-      j++;
-    }
 
-    function charToToken(): Token | null {
+    function charToToken(): Token["token"] | null {
       if (!char) {
         return null;
       }
@@ -100,16 +106,22 @@ export function createLexer(s: string): Lexer {
       return { tag: "IDEN", name: char };
     }
 
-    return { token: charToToken(), nextTokenStart: j };
+    const token = charToToken();
+    if (!token) {
+      return null;
+    }
+    return { token, info: { startIdx, endIdx: j } };
   }
   return {
     peek: () => {
-      return calculateNextToken().token;
+      return calculateNextToken();
     },
     nextToken: () => {
       const result = calculateNextToken();
-      i = result.nextTokenStart;
-      return result.token;
+      if (result) {
+        i = result.info.endIdx;
+      }
+      return result;
     },
   };
 }
