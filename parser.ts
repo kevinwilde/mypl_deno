@@ -2,17 +2,17 @@ import { Lexer } from "./lexer.ts";
 import { assert } from "./utils.ts";
 
 export type Value =
-  | { tag: "BOOL"; val: boolean }
-  | { tag: "INT"; val: number }
-  | { tag: "STR"; val: string };
+  | { tag: "TmBool"; val: boolean }
+  | { tag: "TmInt"; val: number }
+  | { tag: "TmStr"; val: string };
 
 export type Term =
   | Value
-  | { tag: "VAR"; name: string }
-  | { tag: "IF"; cond: Term; then: Term; else: Term }
-  | { tag: "ABS"; params: string[]; body: Term }
-  | { tag: "APP"; func: Term; args: Term[] }
-  | { tag: "LET"; name: string; val: Term; body: Term };
+  | { tag: "TmVar"; name: string }
+  | { tag: "TmIf"; cond: Term; then: Term; else: Term }
+  | { tag: "TmAbs"; params: { name: string }[]; body: Term }
+  | { tag: "TmApp"; func: Term; args: Term[] }
+  | { tag: "TmLet"; name: string; val: Term; body: Term };
 
 export function createAST(lexer: Lexer): Term {
   function getNextTerm(): Term | null {
@@ -23,24 +23,24 @@ export function createAST(lexer: Lexer): Term {
 
     switch (cur.tag) {
       case "RPAREN":
-        throw new Error("Unexpected close paren");
       case "LET":
       case "IF":
       case "LAMBDA":
         throw new Error(`Unexpected token: ${cur.tag}`);
       case "BOOL":
-        return { tag: "BOOL", val: cur.val };
+        return { tag: "TmBool", val: cur.val };
       case "INT":
-        return { tag: "INT", val: cur.val };
+        return { tag: "TmInt", val: cur.val };
       case "STR":
-        return { tag: "STR", val: cur.val };
+        return { tag: "TmStr", val: cur.val };
       case "IDEN":
-        return { tag: "VAR", name: cur.name };
+        return { tag: "TmVar", name: cur.name };
 
       case "LPAREN": {
         let nextToken = lexer.peek();
         if (!nextToken) throw new Error();
         switch (nextToken.tag) {
+          case "RPAREN":
           case "BOOL":
           case "INT":
           case "STR":
@@ -60,7 +60,7 @@ export function createAST(lexer: Lexer): Term {
               } else if (next.tag === "RPAREN") {
                 break;
               } else if (next.tag === "IDEN") {
-                params.push(next.name);
+                params.push({ name: next.name });
               } else {
                 throw new Error();
               }
@@ -69,7 +69,7 @@ export function createAST(lexer: Lexer): Term {
             const closeLambdaParen = lexer.nextToken();
             assert(closeLambdaParen !== null, "Unexpected EOF");
             assert(closeLambdaParen?.tag === "RPAREN", "Unexpected token");
-            return { tag: "ABS", params, body };
+            return { tag: "TmAbs", params, body };
           }
           case "LET": {
             const let_ = lexer.nextToken();
@@ -84,7 +84,7 @@ export function createAST(lexer: Lexer): Term {
             const closeLetParen = lexer.nextToken();
             assert(closeLetParen !== null, "Unexpected EOF");
             assert(closeLetParen?.tag === "RPAREN", "Unexpected token");
-            return { tag: "LET", name: varName.name, val, body };
+            return { tag: "TmLet", name: varName.name, val, body };
           }
           case "IF": {
             const if_ = lexer.nextToken();
@@ -94,7 +94,7 @@ export function createAST(lexer: Lexer): Term {
             const closeIfParen = lexer.nextToken();
             assert(closeIfParen !== null, "Unexpected EOF");
             assert(closeIfParen?.tag === "RPAREN", "Unexpected token");
-            return { tag: "IF", cond, then, else: else_ };
+            return { tag: "TmIf", cond, then, else: else_ };
           }
           case "LPAREN":
           case "IDEN": {
@@ -111,7 +111,7 @@ export function createAST(lexer: Lexer): Term {
                 args.push(createAST(lexer));
               }
             }
-            return { tag: "APP", func, args };
+            return { tag: "TmApp", func, args };
           }
           default: {
             const _exhaustiveCheck: never = nextToken;

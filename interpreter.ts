@@ -8,9 +8,9 @@ export function evaluate(ast: ParserTerm) {
 type Environment = { name: string; value: Value }[];
 export type Value =
   | ParserValue
-  | { tag: "CLOSURE"; params: string[]; body: Term; env: Environment }
+  | { tag: "TmClosure"; params: string[]; body: Term; env: Environment }
   | {
-    tag: "STDLIB_FUN";
+    tag: "TmStdlibFun";
     params: { tag: Value["tag"] }[];
     impl: (...args: any) => Value;
   };
@@ -18,32 +18,37 @@ type Term = ParserTerm | Value;
 
 function interpretInEnv(term: Term, env: Environment): Value {
   switch (term.tag) {
-    case "BOOL":
-    case "INT":
-    case "STR":
-    case "CLOSURE":
-    case "STDLIB_FUN":
+    case "TmBool":
+    case "TmInt":
+    case "TmStr":
+    case "TmClosure":
+    case "TmStdlibFun":
       return term;
-    case "ABS":
-      return { tag: "CLOSURE", params: term.params, body: term.body, env };
-    case "VAR":
+    case "TmAbs":
+      return {
+        tag: "TmClosure",
+        params: term.params.map((p) => p.name),
+        body: term.body,
+        env,
+      };
+    case "TmVar":
       return lookupInEnv(term.name, env);
-    case "IF": {
+    case "TmIf": {
       const condResult = interpretInEnv(term.cond, env);
-      if (condResult.tag !== "BOOL") {
+      if (condResult.tag !== "TmBool") {
         throw new Error("Expected condition to be a boolean expression");
       }
       return interpretInEnv(condResult.val ? term.then : term.else, env);
     }
-    case "LET": {
+    case "TmLet": {
       const newEnv = [{ name: term.name, value: interpretInEnv(term.val, env) }]
         .concat(env);
       return interpretInEnv(term.body, newEnv);
     }
-    case "APP": {
+    case "TmApp": {
       const closure = interpretInEnv(term.func, env);
       const args = term.args.map((a) => interpretInEnv(a, env));
-      if (closure.tag === "CLOSURE") {
+      if (closure.tag === "TmClosure") {
         if (closure.params.length !== args.length) {
           throw new Error(
             `Incorrect number of arguments. Expected ${closure.params.length} but got ${args.length}`,
@@ -54,7 +59,7 @@ function interpretInEnv(term: Term, env: Environment): Value {
           value: args[index],
         })).concat(closure.env);
         return interpretInEnv(closure.body, newEnv);
-      } else if (closure.tag === "STDLIB_FUN") {
+      } else if (closure.tag === "TmStdlibFun") {
         if (closure.params.length !== args.length) {
           throw new Error(
             `Incorrect number of arguments. Expected ${closure.params.length} but got ${args.length}`,
