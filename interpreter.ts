@@ -35,6 +35,7 @@ function interpretInEnv(term: Term, env: Environment): Value {
     case "TmIf": {
       const condResult = interpretInEnv(term.cond, env);
       if (condResult.tag !== "TmBool") {
+        // Should never happen as it's already be handled by typechecker
         throw new Error("Expected condition to be a boolean expression");
       }
       return interpretInEnv(condResult.val ? term.then : term.else, env);
@@ -48,11 +49,12 @@ function interpretInEnv(term: Term, env: Environment): Value {
       const closure = interpretInEnv(term.func, env);
       const args = term.args.map((a) => interpretInEnv(a, env));
       if (closure.tag === "TmClosure") {
-        if (closure.params.length !== args.length) {
-          throw new Error(
-            `Incorrect number of arguments. Expected ${closure.params.length} but got ${args.length}`,
-          );
-        }
+        //// Handled by typechecker
+        // if (closure.params.length !== args.length) {
+        //   throw new Error(
+        //     `Incorrect number of arguments. Expected ${closure.params.length} but got ${args.length}`,
+        //   );
+        // }
         const newEnv = closure.params.map((paramName, index) => ({
           name: paramName,
           value: args[index],
