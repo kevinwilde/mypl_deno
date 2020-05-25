@@ -8,7 +8,7 @@ function printTestCase(program: string) {
   console.log("=========================================================");
   const lexer = createLexer(program);
   const ast = createAST(lexer);
-  console.log(prettyPrint(ast));
+  // console.log(prettyPrint(ast));
   console.log((evaluate(ast)));
   console.log("=========================================================");
 }
