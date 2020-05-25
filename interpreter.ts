@@ -11,8 +11,7 @@ export type Value =
   | { tag: "TmClosure"; params: string[]; body: Term; env: Environment }
   | {
     tag: "TmStdlibFun";
-    params: { tag: Value["tag"] }[];
-    impl: (...args: any) => Value;
+    impl: (...args: Value[]) => Value;
   };
 type Term = ParserTerm | Value;
 
@@ -60,20 +59,21 @@ function interpretInEnv(term: Term, env: Environment): Value {
         })).concat(closure.env);
         return interpretInEnv(closure.body, newEnv);
       } else if (closure.tag === "TmStdlibFun") {
-        if (closure.params.length !== args.length) {
-          throw new Error(
-            `Incorrect number of arguments. Expected ${closure.params.length} but got ${args.length}`,
-          );
-        }
-        for (let i = 0; i < args.length; i++) {
-          if (args[i].tag !== closure.params[i].tag) {
-            throw new Error(
-              `TypeError: Expected ${closure.params[i].tag} but got ${
-                args[i].tag
-              }`,
-            );
-          }
-        }
+        //// Handled by typechecker
+        // if (closure.params.length !== args.length) {
+        //   throw new Error(
+        //     `Incorrect number of arguments. Expected ${closure.params.length} but got ${args.length}`,
+        //   );
+        // }
+        // for (let i = 0; i < args.length; i++) {
+        //   if (args[i].tag !== closure.params[i].tag) {
+        //     throw new Error(
+        //       `TypeError: Expected ${closure.params[i].tag} but got ${
+        //         args[i].tag
+        //       }`,
+        //     );
+        //   }
+        // }
         return closure.impl(...args);
       } else {
         throw new Error("cannot call a non function");

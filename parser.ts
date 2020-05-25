@@ -1,5 +1,6 @@
 import { Lexer } from "./lexer.ts";
 import { assert } from "./utils.ts";
+import { Type } from "./typechecker.ts";
 
 export type Value =
   | { tag: "TmBool"; val: boolean }
@@ -10,7 +11,7 @@ export type Term =
   | Value
   | { tag: "TmVar"; name: string }
   | { tag: "TmIf"; cond: Term; then: Term; else: Term }
-  | { tag: "TmAbs"; params: { name: string }[]; body: Term }
+  | { tag: "TmAbs"; params: { name: string; typeAnn: Type }[]; body: Term }
   | { tag: "TmApp"; func: Term; args: Term[] }
   | { tag: "TmLet"; name: string; val: Term; body: Term };
 
@@ -59,7 +60,10 @@ export function createAST(lexer: Lexer): Term {
               } else if (next.tag === "RPAREN") {
                 break;
               } else if (next.tag === "IDEN") {
-                params.push({ name: next.name });
+                // TODO error handling
+                // TODO should prob be handled in lexer
+                const [varName, typeAnn] = next.name.split(":");
+                params.push({ name: varName, typeAnn: typeAnnToType(typeAnn) });
               } else {
                 throw new Error();
               }
@@ -140,4 +144,17 @@ export function createAST(lexer: Lexer): Term {
     throw new Error("bad program");
   }
   return result;
+}
+
+function typeAnnToType(ann: string): Type {
+  switch (ann) {
+    case "bool":
+      return { tag: "TyBool" };
+    case "int":
+      return { tag: "TyInt" };
+    case "str":
+      return { tag: "TyStr" };
+    default:
+      throw new Error(`Unknown type: ${ann}`);
+  }
 }
