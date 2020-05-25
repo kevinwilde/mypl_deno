@@ -7,7 +7,7 @@ type Token =
   | { tag: "BOOL"; val: boolean }
   | { tag: "INT"; val: number }
   | { tag: "STR"; val: string }
-  | { tag: "VAR"; name: string };
+  | { tag: "IDEN"; name: string };
 
 export type Lexer = { peek: () => Token | null; nextToken: () => Token | null };
 
@@ -45,7 +45,7 @@ export function createLexer(s: string): Lexer {
     if (char[0] === '"' && char[char.length - 1] === '"') {
       return { tag: "STR", val: char.slice(1, char.length - 1) };
     }
-    return { tag: "VAR", name: char };
+    return { tag: "IDEN", name: char };
   }
   return {
     peek: () => {

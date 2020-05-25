@@ -33,7 +33,7 @@ export function createAST(lexer: Lexer): Term {
         return { tag: "INT", val: cur.val };
       case "STR":
         return { tag: "STR", val: cur.val };
-      case "VAR":
+      case "IDEN":
         return { tag: "VAR", name: cur.name };
 
       case "LPAREN": {
@@ -58,7 +58,7 @@ export function createAST(lexer: Lexer): Term {
                 throw new Error();
               } else if (next.tag === "RPAREN") {
                 break;
-              } else if (next.tag === "VAR") {
+              } else if (next.tag === "IDEN") {
                 params.push(next.name);
               } else {
                 throw new Error();
@@ -73,7 +73,7 @@ export function createAST(lexer: Lexer): Term {
           case "LET": {
             const let_ = lexer.nextToken();
             const varName = lexer.nextToken();
-            if (varName === null || varName.tag !== "VAR") {
+            if (varName === null || varName.tag !== "IDEN") {
               throw new Error(
                 "Expected a variable name to bind let expression to",
               );
@@ -100,7 +100,7 @@ export function createAST(lexer: Lexer): Term {
             return { tag: "IF", cond, then, else: else_ };
           }
           case "LPAREN":
-          case "VAR": {
+          case "IDEN": {
             const func = createAST(lexer);
             const args = [];
             while (true) {
