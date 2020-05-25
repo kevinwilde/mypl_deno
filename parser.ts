@@ -44,8 +44,7 @@ export function createAST(lexer: Lexer): Term {
           case "BOOL":
           case "INT":
           case "STR":
-          case "RPAREN":
-            throw new Error(`Unexpected token: ${cur.tag}`);
+            throw new Error(`Unexpected token: ${nextToken.tag}`);
           case "LAMBDA": {
             const lambda_ = lexer.nextToken();
             const params = [];
