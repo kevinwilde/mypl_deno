@@ -13,48 +13,85 @@ export type Lexer = { peek: () => Token | null; nextToken: () => Token | null };
 
 export function createLexer(s: string): Lexer {
   let i = 0;
-  const input = s.replace(/\(/g, " ( ")
-    .replace(/\)/g, " ) ")
-    .match(/[^\s"]+|"([^"]*)"/g);
-  if (!input) {
-    throw new Error();
-  }
-  function charToToken(char: string): Token | null {
-    if (!char) {
-      return null;
+  const input = s.trim();
+
+  function calculateNextToken(): {
+    token: Token | null;
+    nextTokenStart: number;
+  } {
+    if (i >= input.length) {
+      return { token: null, nextTokenStart: i };
     }
-    switch (char) {
-      case "(":
-        return { tag: "LPAREN" };
-      case ")":
-        return { tag: "RPAREN" };
-      case "let":
-        return { tag: "LET" };
-      case "if":
-        return { tag: "IF" };
-      case "lambda":
-        return { tag: "LAMBDA" };
-      case "#t":
-        return { tag: "BOOL", val: true };
-      case "#f":
-        return { tag: "BOOL", val: false };
+    let char = "";
+    let j = i;
+    if (input[j] === '"') {
+      // Handle strings
+      char += input[j];
+      j++;
+      while (j < input.length && input[j] !== '"') {
+        char += input[j];
+        j++;
+      }
+      char += input[j];
+      j++;
+    } else if (input[j] === "(" || input[j] === ")") {
+      // Handle parens
+      char += input[j];
+      j++;
+    } else {
+      // Handle all other tokens
+      // chars which signal end of token:
+      // - whitespace
+      // - parens
+      while (j < input.length && !/(\s|\(|\))/.test(input[j])) {
+        char += input[j];
+        j++;
+      }
     }
-    if (parseInt(char).toString() === char) {
-      return { tag: "INT", val: parseInt(char) };
+    // Eat up extra whitespace before next token
+    while (j < input.length && /\s/.test(input[j])) {
+      j++;
     }
-    if (char[0] === '"' && char[char.length - 1] === '"') {
-      return { tag: "STR", val: char.slice(1, char.length - 1) };
+
+    function charToToken(): Token | null {
+      if (!char) {
+        return null;
+      }
+      switch (char) {
+        case "(":
+          return { tag: "LPAREN" };
+        case ")":
+          return { tag: "RPAREN" };
+        case "let":
+          return { tag: "LET" };
+        case "if":
+          return { tag: "IF" };
+        case "lambda":
+          return { tag: "LAMBDA" };
+        case "#t":
+          return { tag: "BOOL", val: true };
+        case "#f":
+          return { tag: "BOOL", val: false };
+      }
+      if (parseInt(char).toString() === char) {
+        return { tag: "INT", val: parseInt(char) };
+      }
+      if (char[0] === '"' && char[char.length - 1] === '"') {
+        return { tag: "STR", val: char.slice(1, char.length - 1) };
+      }
+      return { tag: "IDEN", name: char };
     }
-    return { tag: "IDEN", name: char };
+
+    return { token: charToToken(), nextTokenStart: j };
   }
   return {
     peek: () => {
-      return charToToken(input[i]);
+      return calculateNextToken().token;
     },
     nextToken: () => {
-      const result = charToToken(input[i]);
-      i++;
-      return result;
+      const result = calculateNextToken();
+      i = result.nextTokenStart;
+      return result.token;
     },
   };
 }
