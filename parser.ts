@@ -4,7 +4,8 @@ import { ParseError, EOFError } from "./exceptions.ts";
 export type Value =
   | { tag: "TmBool"; val: boolean }
   | { tag: "TmInt"; val: number }
-  | { tag: "TmStr"; val: string };
+  | { tag: "TmStr"; val: string }
+  | { tag: "TmList"; elements: Term[] };
 
 export type Term =
   & { info: SourceInfo }
@@ -28,6 +29,7 @@ export function createAST(lexer: Lexer): Term {
 
     switch (cur.token.tag) {
       case "RPAREN":
+      case "RBRACK":
       case "LET":
       case "IF":
       case "LAMBDA":
@@ -41,11 +43,37 @@ export function createAST(lexer: Lexer): Term {
       case "IDEN":
         return { info: cur.info, term: { tag: "TmVar", name: cur.token.name } };
 
+      case "LBRACK": {
+        const elements = [];
+        while (true) {
+          const next = lexer.peek();
+          if (!next) {
+            throw new Error();
+          } else if (next.token.tag === "RBRACK") {
+            const closeBrack_ = lexer.nextToken();
+            if (closeBrack_ === null) {
+              throw new Error("impossible");
+            }
+            return {
+              info: {
+                startIdx: cur.info.startIdx,
+                endIdx: closeBrack_.info.endIdx,
+              },
+              term: { tag: "TmList", elements },
+            };
+          } else {
+            elements.push(createAST(lexer));
+          }
+        }
+      }
+
       case "LPAREN": {
         let nextToken = lexer.peek();
         if (!nextToken) throw new EOFError();
         switch (nextToken.token.tag) {
           case "RPAREN":
+          case "LBRACK":
+          case "RBRACK":
           case "BOOL":
           case "INT":
           case "STR":

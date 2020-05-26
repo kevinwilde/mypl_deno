@@ -1,7 +1,5 @@
 import { Value } from "./interpreter.ts";
-
-type DiscriminateUnion<T, K extends keyof T, V extends T[K]> = T extends
-  Record<K, V> ? T : never;
+import { DiscriminateUnion } from "./utils.ts";
 
 const STD_LIB: Record<string, DiscriminateUnion<Value, "tag", "TmStdlibFun">> =
   {
@@ -44,6 +42,27 @@ const STD_LIB: Record<string, DiscriminateUnion<Value, "tag", "TmStdlibFun">> =
         x: DiscriminateUnion<Value, "tag", "TmStr">,
         y: DiscriminateUnion<Value, "tag", "TmStr">,
       ) => ({ tag: "TmStr", val: x.val + y.val }),
+    },
+    "empty?": {
+      tag: "TmStdlibFun",
+      params: [{ tag: "TmList" }],
+      impl: (
+        lst: DiscriminateUnion<Value, "tag", "TmList">,
+      ) => ({ tag: "TmBool", val: lst.elements.length === 0 }),
+    },
+    "car": {
+      tag: "TmStdlibFun",
+      params: [{ tag: "TmList" }],
+      impl: (
+        lst: DiscriminateUnion<Value, "tag", "TmList">,
+      ) => lst.elements[0],
+    },
+    "cdr": {
+      tag: "TmStdlibFun",
+      params: [{ tag: "TmList" }],
+      impl: (
+        lst: DiscriminateUnion<Value, "tag", "TmList">,
+      ) => ({ tag: "TmList", elements: lst.elements.slice(1) }),
     },
   };
 

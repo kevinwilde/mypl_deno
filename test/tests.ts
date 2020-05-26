@@ -3,6 +3,34 @@ import { createAST } from "../parser.ts";
 import { evaluate } from "../interpreter.ts";
 import { prettyPrint } from "../utils.ts";
 
+function valuesEqual(
+  v1: ReturnType<typeof evaluate>,
+  v2: ReturnType<typeof evaluate>,
+): boolean {
+  switch (v1.tag) {
+    case "TmBool":
+      return v2.tag === "TmBool" &&
+        v1.val === v2.val;
+    case "TmInt":
+      return v2.tag === "TmInt" &&
+        v1.val === v2.val;
+    case "TmStr":
+      return v2.tag === "TmStr" &&
+        v1.val === v2.val;
+    case "TmList":
+      return v2.tag === "TmList" &&
+        v1.elements.every((value, i) =>
+          v2.elements[i] && valuesEqual(value, v2.elements[i])
+        );
+    case "TmStdlibFun":
+    case "TmClosure":
+      return false; // TODO ?
+    default:
+      const _exhaustiveCheck: never = v1;
+      throw new Error();
+  }
+}
+
 function assertResult(
   program: string,
   expectedResult: ReturnType<typeof evaluate>,
@@ -10,25 +38,7 @@ function assertResult(
   const lexer = createLexer(program);
   const ast = createAST(lexer);
   const actualResult = evaluate(ast);
-  function getTestResult() {
-    switch (actualResult.tag) {
-      case "TmBool":
-        return expectedResult.tag === "TmBool" &&
-          actualResult.val === expectedResult.val;
-      case "TmInt":
-        return expectedResult.tag === "TmInt" &&
-          actualResult.val === expectedResult.val;
-      case "TmStr":
-        return expectedResult.tag === "TmStr" &&
-          actualResult.val === expectedResult.val;
-      case "TmStdlibFun":
-      case "TmClosure":
-        return false; // TODO ?
-      default:
-        const _exhaustiveCheck: never = actualResult;
-    }
-  }
-  const success = getTestResult();
+  const success = valuesEqual(actualResult, expectedResult);
   if (!success) {
     console.log("AST:");
     console.log(prettyPrint(ast));
@@ -158,6 +168,57 @@ Deno.test("first class function with stdlib", () => {
       (doTwice string-concat "Be" " Rhexa"))
   `;
   assertResult(program, { tag: "TmStr", val: "BeBe Rhexa" });
+});
+
+Deno.test("simple list", () => {
+  let program = `
+  (let isNotEmpty
+    (lambda (lst) (if (empty? lst) 0 1))
+    (isNotEmpty []))
+  `;
+  assertResult(program, { tag: "TmInt", val: 0 });
+  program = `
+  (let isNotEmpty
+    (lambda (lst) (if (empty? lst) 0 1))
+    (isNotEmpty ["hi"]))
+  `;
+  assertResult(program, { tag: "TmInt", val: 1 });
+});
+
+Deno.test("nested lists", () => {
+  let program = `
+  (let cadr
+    (lambda (lst)
+      (if (empty? lst)
+          #f
+          (if (empty? (cdr lst))
+              #f
+              (car (cdr lst))
+          )
+      )
+    )
+    (cadr [1 2 3 4])
+  )
+  `;
+  assertResult(program, { tag: "TmInt", val: 2 });
+  program = `
+  (let cdar
+    (lambda (lst)
+      (if (empty? lst)
+          #f
+          (if (empty? (car lst))
+              #f
+              (cdr (car lst))
+          )
+      )
+    )
+    (cdar [[1 2] [3 4]])
+  )
+  `;
+  assertResult(
+    program,
+    { tag: "TmList", elements: [{ tag: "TmInt", val: 2 }] },
+  );
 });
 
 Deno.test("naive factorial", () => {

@@ -1,33 +1,30 @@
-import { Term as ParserTerm, Value as ParserValue } from "./parser.ts";
+import { Term, Value as ParserValue } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
-import { SourceInfo } from "./lexer.ts";
 import { RuntimeError } from "./exceptions.ts";
+import { DiscriminateUnion } from "./utils.ts";
 
-export function evaluate(ast: ParserTerm) {
+export function evaluate(ast: Term) {
   return interpretInEnv(ast, []);
 }
 
 type Environment = { name: string; value: Value }[];
 export type Value =
-  | ParserValue
+  | DiscriminateUnion<ParserValue, "tag", "TmBool">
+  | DiscriminateUnion<ParserValue, "tag", "TmInt">
+  | DiscriminateUnion<ParserValue, "tag", "TmStr">
+  | { tag: "TmList"; elements: Value[] }
   | { tag: "TmClosure"; params: string[]; body: Term; env: Environment }
   | {
     tag: "TmStdlibFun";
     params: { tag: Value["tag"] }[];
     impl: (...args: any) => Value;
   };
-type Term = {
-  info: SourceInfo;
-  term: (Value | ParserTerm["term"]);
-};
 
 function interpretInEnv(term: Term, env: Environment): Value {
   switch (term.term.tag) {
     case "TmBool":
     case "TmInt":
     case "TmStr":
-    case "TmClosure":
-    case "TmStdlibFun":
       return term.term;
     case "TmAbs":
       return {
@@ -38,6 +35,10 @@ function interpretInEnv(term: Term, env: Environment): Value {
       };
     case "TmVar":
       return lookupInEnv(term.term.name, env);
+    case "TmList": {
+      const elements = term.term.elements.map((el) => interpretInEnv(el, env));
+      return { tag: "TmList", elements };
+    }
     case "TmIf": {
       const condResult = interpretInEnv(term.term.cond, env);
       if (condResult.tag !== "TmBool") {

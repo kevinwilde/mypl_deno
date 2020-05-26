@@ -6,6 +6,8 @@ type Token =
     token: (
       | { tag: "LPAREN" }
       | { tag: "RPAREN" }
+      | { tag: "LBRACK" }
+      | { tag: "RBRACK" }
       | { tag: "LET" }
       | { tag: "IF" }
       | { tag: "LAMBDA" }
@@ -48,12 +50,17 @@ export function createLexer(s: string): Lexer {
       // Handle parens
       char += input[j];
       j++;
+    } else if (input[j] === "[" || input[j] === "]") {
+      // Handle brackets
+      char += input[j];
+      j++;
     } else {
       // Handle all other tokens
       // chars which signal end of token:
       // - whitespace
       // - parens
-      while (j < input.length && !/(\s|\(|\))/.test(input[j])) {
+      // - brackets
+      while (j < input.length && !/(\s|\(|\)|\[|\])/.test(input[j])) {
         char += input[j];
         j++;
       }
@@ -68,6 +75,10 @@ export function createLexer(s: string): Lexer {
           return { tag: "LPAREN" };
         case ")":
           return { tag: "RPAREN" };
+        case "[":
+          return { tag: "LBRACK" };
+        case "]":
+          return { tag: "RBRACK" };
         case "let":
           return { tag: "LET" };
         case "if":

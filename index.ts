@@ -31,3 +31,8 @@ printTestCase(
              (addN 1)
              (add1 42)))`,
 );
+printTestCase(`
+(let isNotEmpty
+  (lambda (lst) (if (empty? lst) 0 1))
+  (isNotEmpty [ ]))
+`);
