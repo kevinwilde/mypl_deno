@@ -73,6 +73,50 @@ const STD_LIB: Record<string, StdLibFun> = {
       y: DiscriminateUnion<Value, "tag", "TmStr">,
     ) => ({ tag: "TmStr", val: x.val + y.val }),
   },
+  "fix": {
+    // Only works for recursive functions that take 1 int and return an int
+    // like factorial
+    tag: "TmStdlibFun",
+    type: {
+      tag: "TyArrow",
+      paramTypes: [
+        {
+          "tag": "TyArrow",
+          "paramTypes": [
+            {
+              "tag": "TyArrow",
+              "paramTypes": [{ "tag": "TyId", name: "T0" }],
+              "returnType": { "tag": "TyId", name: "T1" },
+            },
+          ],
+          "returnType": {
+            "tag": "TyArrow",
+            "paramTypes": [{ "tag": "TyId", name: "T0" }],
+            "returnType": { "tag": "TyId", name: "T1" },
+          },
+        },
+      ],
+      returnType: {
+        tag: "TyArrow",
+        paramTypes: [{ tag: "TyId", name: "T0" }],
+        returnType: { tag: "TyId", name: "T1" },
+      },
+    },
+    impl: (f: DiscriminateUnion<Value, "tag", "TmClosure">) => {
+      if (f.body.term.tag !== "TmAbs") {
+        throw new Error();
+      }
+      const result: DiscriminateUnion<Value, "tag", "TmClosure"> = {
+        tag: "TmClosure",
+        params: [f.body.term.params[0].name],
+        body: f.body.term.body,
+        env: null as any,
+      };
+      const newEnv = [{ name: f.params[0], value: result }, ...f.env];
+      result.env = newEnv;
+      return result;
+    },
+  },
 };
 
 export function lookupInStdLib(

@@ -479,32 +479,65 @@ Deno.test("[TypeError] first class functions (without type ann)", () => {
   expectTypeError(program);
 });
 
-// Deno.test("naive factorial", () => {
-//   const fix = `
-//     (lambda (f)
-//       ((lambda (x)
-//           (f (lambda (y) ((x x) y))))
-//         (lambda (x)
-//           (f (lambda (y) ((x x) y))))))
-//   `;
-//   const g = `
-//     (lambda (fct)
-//       (lambda (n)
-//         (if (= n 0)
-//           1
-//           (* n (fct (- n 1))))))
-//   `;
-//   let program = `(let factorial (${fix} ${g}) (factorial 0))`;
-//   assertResult(program, { tag: "TmInt", val: 1 });
-//   program = `(let factorial (${fix} ${g}) (factorial 1))`;
-//   assertResult(program, { tag: "TmInt", val: 1 });
-//   program = `(let factorial (${fix} ${g}) (factorial 2))`;
-//   assertResult(program, { tag: "TmInt", val: 2 });
-//   program = `(let factorial (${fix} ${g}) (factorial 3))`;
-//   assertResult(program, { tag: "TmInt", val: 6 });
-//   program = `(let factorial (${fix} ${g}) (factorial 4))`;
-//   assertResult(program, { tag: "TmInt", val: 24 });
-// });
+Deno.test("naive factorial (with type ann)", () => {
+  const g = `
+    (lambda (fct: (-> (int) int))
+      (lambda (n: int)
+        (if (= n 0)
+          1
+          (* n (fct (- n 1))))))
+  `;
+  let program = `(let factorial (fix ${g}) (factorial 0))`;
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = `(let factorial (fix ${g}) (factorial 1))`;
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = `(let factorial (fix ${g}) (factorial 2))`;
+  assertResult(program, { tag: "TmInt", val: 2 });
+  program = `(let factorial (fix ${g}) (factorial 3))`;
+  assertResult(program, { tag: "TmInt", val: 6 });
+  program = `(let factorial (fix ${g}) (factorial 4))`;
+  assertResult(program, { tag: "TmInt", val: 24 });
+});
+
+Deno.test("naive factorial (without type ann)", () => {
+  const g = `
+    (lambda (fct)
+      (lambda (n)
+        (if (= n 0)
+          1
+          (* n (fct (- n 1))))))
+  `;
+  let program = `(let factorial (fix ${g}) (factorial 0))`;
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = `(let factorial (fix ${g}) (factorial 1))`;
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = `(let factorial (fix ${g}) (factorial 2))`;
+  assertResult(program, { tag: "TmInt", val: 2 });
+  program = `(let factorial (fix ${g}) (factorial 3))`;
+  assertResult(program, { tag: "TmInt", val: 6 });
+  program = `(let factorial (fix ${g}) (factorial 4))`;
+  assertResult(program, { tag: "TmInt", val: 24 });
+  program = `(let factorial (fix ${g}) (+ (factorial 4) (factorial 3)))`;
+  assertResult(program, { tag: "TmInt", val: 30 });
+});
+
+Deno.test("recursive function that takes int returns str", () => {
+  const g = `
+    (lambda (append-n : (-> (int) str))
+      (lambda (n: int)
+        (if (= n 0)
+          ""
+          (string-concat "a" (append-n (- n 1))))))
+  `;
+  let program = `(let myFunc (fix ${g}) (myFunc 0))`;
+  assertResult(program, { tag: "TmStr", val: "" });
+  program = `(let myFunc (fix ${g}) (myFunc 1))`;
+  assertResult(program, { tag: "TmStr", val: "a" });
+  program = `(let myFunc (fix ${g}) (myFunc 2))`;
+  assertResult(program, { tag: "TmStr", val: "aa" });
+  program = `(string-concat (let myFunc (fix ${g}) (myFunc 2)) "b")`;
+  assertResult(program, { tag: "TmStr", val: "aab" });
+});
 
 // Deno.test("naive fibonacci", () => {
 //   const fix = `
