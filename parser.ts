@@ -67,7 +67,11 @@ export function createAST(lexer: Lexer): Term {
             const body = createAST(lexer);
             const closeLambdaParen = lexer.nextToken();
             assert(closeLambdaParen !== null, "Unexpected EOF");
-            assert(closeLambdaParen?.tag === "RPAREN", "Unexpected token");
+            assert(
+              closeLambdaParen?.tag === "RPAREN",
+              `Unexpected token: expected \`)\` but got ${closeLambdaParen
+                ?.tag}`,
+            );
             return { tag: "TmAbs", params, body };
           }
           case "LET": {
@@ -82,7 +86,10 @@ export function createAST(lexer: Lexer): Term {
             const body = createAST(lexer);
             const closeLetParen = lexer.nextToken();
             assert(closeLetParen !== null, "Unexpected EOF");
-            assert(closeLetParen?.tag === "RPAREN", "Unexpected token");
+            assert(
+              closeLetParen?.tag === "RPAREN",
+              `Unexpected token: expected \`)\` but got ${closeLetParen?.tag}`,
+            );
             return { tag: "TmLet", name: varName.name, val, body };
           }
           case "IF": {
@@ -92,7 +99,10 @@ export function createAST(lexer: Lexer): Term {
             const else_ = createAST(lexer);
             const closeIfParen = lexer.nextToken();
             assert(closeIfParen !== null, "Unexpected EOF");
-            assert(closeIfParen?.tag === "RPAREN", "Unexpected token");
+            assert(
+              closeIfParen?.tag === "RPAREN",
+              `Unexpected token: expected \`)\` but got ${closeIfParen?.tag}`,
+            );
             return { tag: "TmIf", cond, then, else: else_ };
           }
           case "LPAREN":
