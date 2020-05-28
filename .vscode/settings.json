@@ -1,7 +1,8 @@
 {
-    "deno.enable": true,
+    "deno.enabled": true,
+    // "deno.autoFmtOnSave": true,
     "[typescript]": {
-        "editor.defaultFormatter": "axetroy.vscode-deno",
+        "editor.defaultFormatter": "denoland.vscode-deno",
         "editor.formatOnSave": false,
     },
     "saveAndRun": {
