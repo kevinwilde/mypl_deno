@@ -183,23 +183,35 @@ function parseTypeAnn(lexer: Lexer): Type {
       }
     }
     case "LPAREN": {
-      const paramTypes = [];
-      while (lexer.peek() && lexer.peek()?.tag !== "RPAREN") {
-        paramTypes.push(parseTypeAnn(lexer));
-      }
-      const rparen_ = lexer.nextToken();
-      assert(rparen_ !== null, "Unexpected EOF");
-      assert(
-        rparen_?.tag === "RPAREN",
-        `Unexpected token: expected \`)\` but got ${rparen_?.tag}`,
-      );
       const arrow = lexer.nextToken();
       assert(arrow !== null, "Unexpected EOF");
       assert(
         arrow?.tag === "ARROW",
         `Unexpected token: expected \`->\` but got ${arrow?.tag}`,
       );
+      const paramsOpenParen = lexer.nextToken();
+      assert(paramsOpenParen !== null, "Unexpected EOF");
+      assert(
+        paramsOpenParen?.tag === "LPAREN",
+        `Unexpected token: expected \`(\` but got ${paramsOpenParen?.tag}`,
+      );
+      const paramTypes = [];
+      while (lexer.peek() && lexer.peek()?.tag !== "RPAREN") {
+        paramTypes.push(parseTypeAnn(lexer));
+      }
+      const paramsCloseParen = lexer.nextToken();
+      assert(paramsCloseParen !== null, "Unexpected EOF");
+      assert(
+        paramsCloseParen?.tag === "RPAREN",
+        `Unexpected token: expected \`)\` but got ${paramsCloseParen?.tag}`,
+      );
       const returnType = parseTypeAnn(lexer);
+      const rparen_ = lexer.nextToken();
+      assert(rparen_ !== null, "Unexpected EOF");
+      assert(
+        rparen_?.tag === "RPAREN",
+        `Unexpected token: expected \`)\` but got ${rparen_?.tag}`,
+      );
       return { tag: "TyArrow", paramTypes, returnType };
     }
     default: {

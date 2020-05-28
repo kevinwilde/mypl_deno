@@ -213,7 +213,7 @@ Deno.test("shadowing", () => {
 Deno.test("first class functions", () => {
   let program = `
   (let doTwice
-      (lambda (f : ( int ) -> int x: int) (f (f x)))
+      (lambda (f : (-> ( int) int) x: int) (f (f x)))
       (let add1
           (lambda (x:int) (+ x 1))
           (doTwice add1 5)))
@@ -224,7 +224,7 @@ Deno.test("first class functions", () => {
 Deno.test("[TypeError] first class functions", () => {
   let program = `
   (let doTwice
-      (lambda (f : ( int ) -> int x: int) (f (f x)))
+      (lambda (f : (-> ( int ) int) x: int) (f (f x)))
       (let add1
           (lambda (x:int) (+ x 1))
           (doTwice add1 "hi")))
@@ -232,7 +232,7 @@ Deno.test("[TypeError] first class functions", () => {
   expectTypeError(program);
   program = `
   (let doTwice
-      (lambda (f : ( int ) -> int x: int) (f (f x)))
+      (lambda (f : (-> (int ) int) x: int) (f (f x)))
       (let add1
           (lambda (x:str) (string-concat x "world"))
           (doTwice add1 "hi")))
@@ -243,13 +243,13 @@ Deno.test("[TypeError] first class functions", () => {
 Deno.test("first class function with stdlib", () => {
   let program = `
   (let doTwice
-      (lambda (f:(int int)->int x:int y:int) (f x (f x y)))
+      (lambda (f:(-> (int int) int) x:int y:int) (f x (f x y)))
       (doTwice + 5 8))
   `;
   assertResult(program, { tag: "TmInt", val: 18 });
   program = `
   (let doTwice
-      (lambda (f:(str str)->str x:str y:str) (f x (f x y)))
+      (lambda (f:(-> (str str) str) x:str y:str) (f x (f x y)))
       (doTwice string-concat "Be" " Rhexa"))
   `;
   assertResult(program, { tag: "TmStr", val: "BeBe Rhexa" });
@@ -258,25 +258,25 @@ Deno.test("first class function with stdlib", () => {
 Deno.test("[TypeError] first class functions", () => {
   let program = `
   (let doTwice
-    (lambda (f:(int int)->int x:int y:int) (f x (f x y)))
+    (lambda (f:(-> (int int) int) x:int y:int) (f x (f x y)))
     (doTwice string-concat 5 8))
   `;
   expectTypeError(program);
   program = `
   (let doTwice
-    (lambda (f:(int int)->int x:int y:int) (f x (f x y)))
+    (lambda (f:(-> (int int) int) x:int y:int) (f x (f x y)))
     (doTwice + 5 "hi"))
   `;
   expectTypeError(program);
   program = `
   (let doTwice
-    (lambda (f:(str str)->str x:str y:str) (f x (f x y)))
+    (lambda (f:(-> (str str) str) x:str y:str) (f x (f x y)))
     (doTwice + "Be" " Rhexa"))
   `;
   expectTypeError(program);
   program = `
   (let doTwice
-    (lambda (f:(str str)->str x:str y:str) (f x (f x y)))
+    (lambda (f:(-> (str str) str) x:str y:str) (f x (f x y)))
     (doTwice string-concat 2 " Rhexa"))
   `;
   expectTypeError(program);
