@@ -68,8 +68,13 @@ Deno.test("defining a variable (string)", () => {
   assertResult(program, { tag: "TmStr", val: "hello" });
 });
 
-Deno.test("calling a function", () => {
+Deno.test("calling a function (with type ann)", () => {
   let program = "((lambda (x:bool) x) #t)";
+  assertResult(program, { tag: "TmBool", val: true });
+});
+
+Deno.test("calling a function (without type ann)", () => {
+  let program = "((lambda (x) x) #t)";
   assertResult(program, { tag: "TmBool", val: true });
 });
 
@@ -78,10 +83,17 @@ Deno.test("[TypeError] calling a function", () => {
   expectTypeError(program);
 });
 
-Deno.test("calling a function with multiple args", () => {
+Deno.test("calling a function with multiple args (with type ann)", () => {
   let program = " ((lambda (x:bool y:bool) x) #t #f)";
   assertResult(program, { tag: "TmBool", val: true });
   program = " ((lambda (x:bool y:bool) y) #t #f)";
+  assertResult(program, { tag: "TmBool", val: false });
+});
+
+Deno.test("calling a function with multiple args (without type ann)", () => {
+  let program = " ((lambda (x y) x) #t #f)";
+  assertResult(program, { tag: "TmBool", val: true });
+  program = " ((lambda (x y) y) #t #f)";
   assertResult(program, { tag: "TmBool", val: false });
 });
 
@@ -92,22 +104,41 @@ Deno.test("[TypeError] calling a function with multiple args", () => {
   expectTypeError(program);
 });
 
-Deno.test("conditionals", () => {
+Deno.test("conditionals (with type ann)", () => {
   let program = "((lambda (x:bool y:int z:int) (if x y z)) #t 1 2)";
   assertResult(program, { tag: "TmInt", val: 1 });
   program = "((lambda (x:bool y:int z:int) (if x y z)) #f 1 2)";
   assertResult(program, { tag: "TmInt", val: 2 });
 });
 
-Deno.test("[TypeError] conditionals", () => {
+Deno.test("conditionals (wthout type ann)", () => {
+  let program = "((lambda (x y z) (if x y z)) #t 1 2)";
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = "((lambda (x y z) (if x y z)) #f 1 2)";
+  assertResult(program, { tag: "TmInt", val: 2 });
+});
+
+Deno.test("[TypeError] conditionals (with type ann)", () => {
   let program = "((lambda (x: bool y: int z : int) (if x y z)) 1 2 3)";
   expectTypeError(program);
   program = `((lambda (x: bool y :int z:int) (if x y z)) #f 1 "hi")`;
   expectTypeError(program);
 });
 
-Deno.test("addition", () => {
+Deno.test("[TypeError] conditionals (without type ann)", () => {
+  let program = "((lambda (x y z) (if x y z)) 1 2 3)";
+  expectTypeError(program);
+  program = `((lambda (x y z) (if x y z)) #f 1 "hi")`;
+  expectTypeError(program);
+});
+
+Deno.test("addition (with type ann)", () => {
   let program = " (let plus (lambda (x: int y :int) (+ x y)) (plus 2 3))";
+  assertResult(program, { tag: "TmInt", val: 5 });
+});
+
+Deno.test("addition (without type ann)", () => {
+  let program = " (let plus (lambda (x y) (+ x y)) (plus 2 3))";
   assertResult(program, { tag: "TmInt", val: 5 });
 });
 
@@ -116,22 +147,44 @@ Deno.test("[TypeError] stdlib function", () => {
   expectTypeError(program);
   program = `(+ 3 "hi")`;
   expectTypeError(program);
-  program = `(let plus (lambda (x:int y:int) (+ x y)) (plus "hi" 3))`;
+});
+
+Deno.test("[TypeError] using stdlib function (with type ann)", () => {
+  let program = `(let plus (lambda (x:int y:int) (+ x y)) (plus "hi" 3))`;
   expectTypeError(program);
   program = `(let plus (lambda (x:int y:int) (+ x y)) (plus 3 "hi"))`;
   expectTypeError(program);
 });
 
-Deno.test("subtraction", () => {
+Deno.test("[TypeError] using stdlib function (without type ann)", () => {
+  let program = `(let plus (lambda (x y) (+ x y)) (plus "hi" 3))`;
+  expectTypeError(program);
+  program = `(let plus (lambda (x y) (+ x y)) (plus 3 "hi"))`;
+  expectTypeError(program);
+});
+
+Deno.test("subtraction (with type ann)", () => {
   let program = " (let minus (lambda (x:int y:int) (- x y)) (minus 2 3))";
   assertResult(program, { tag: "TmInt", val: -1 });
 });
 
-Deno.test("conditional with equality", () => {
+Deno.test("subtraction (without type ann)", () => {
+  let program = " (let minus (lambda (x y) (- x y)) (minus 2 3))";
+  assertResult(program, { tag: "TmInt", val: -1 });
+});
+
+Deno.test("conditional with equality (with type ann)", () => {
   let program =
     "((lambda (w:int x:int y:int z:int) (if (= w x) y z)) 42 42 1 2)";
   assertResult(program, { tag: "TmInt", val: 1 });
   program = "((lambda (w:int x:int y:int z:int) (if (= w x) y z)) 42 43 1 2)";
+  assertResult(program, { tag: "TmInt", val: 2 });
+});
+
+Deno.test("conditional with equality (without type ann)", () => {
+  let program = "((lambda (w x y z) (if (= w x) y z)) 42 42 1 2)";
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = "((lambda (w x y z) (if (= w x) y z)) 42 43 1 2)";
   assertResult(program, { tag: "TmInt", val: 2 });
 });
 
@@ -140,7 +193,7 @@ Deno.test("string-concat", () => {
   assertResult(program, { tag: "TmStr", val: "helloworld" });
 });
 
-Deno.test("closure", () => {
+Deno.test("closure (with type ann)", () => {
   let program = `
   (let addN
     (lambda (N:int) (lambda (x:int) (+ x N)))
@@ -151,7 +204,18 @@ Deno.test("closure", () => {
   assertResult(program, { tag: "TmInt", val: 43 });
 });
 
-Deno.test("[TypeError] closure", () => {
+Deno.test("closure (without type ann)", () => {
+  let program = `
+  (let addN
+    (lambda (N) (lambda (x) (+ x N)))
+    (let add1
+         (addN 1)
+         (add1 42)))
+  `;
+  assertResult(program, { tag: "TmInt", val: 43 });
+});
+
+Deno.test("[TypeError] closure (with type ann)", () => {
   let program = `
   (let addN
     (lambda (N:int) (lambda (x:int) (+ x N)))
@@ -178,7 +242,34 @@ Deno.test("[TypeError] closure", () => {
   expectTypeError(program);
 });
 
-Deno.test("closure not fooled by later shadow - maintains env where defined", () => {
+Deno.test("[TypeError] closure (without type ann)", () => {
+  let program = `
+  (let addN
+    (lambda (N) (lambda (x) (+ x N)))
+    (let add1
+         (addN "hi")
+         (add1 42)))
+  `;
+  expectTypeError(program);
+  program = `
+  (let addN
+    (lambda (N) (lambda (x) (+ x N)))
+    (let add1
+         (addN 1)
+         (add1 "hi")))
+  `;
+  expectTypeError(program);
+  program = `
+  (let addN
+    (lambda (N) (lambda (x) (string-concat x N)))
+    (let add1
+         (addN 1)
+         (add1 42)))
+  `;
+  expectTypeError(program);
+});
+
+Deno.test("closure not fooled by later shadow - maintains env where defined (with type ann)", () => {
   let program = `
   (let add1
       (let x 1 (lambda (y:int) (+ x y)))
@@ -194,7 +285,23 @@ Deno.test("closure not fooled by later shadow - maintains env where defined", ()
   assertResult(program, { tag: "TmInt", val: 43 });
 });
 
-Deno.test("shadowing", () => {
+Deno.test("closure not fooled by later shadow - maintains env where defined (without type ann)", () => {
+  let program = `
+  (let add1
+      (let x 1 (lambda (y) (+ x y)))
+      (let x 2 (add1 42)))
+  `;
+  assertResult(program, { tag: "TmInt", val: 43 });
+  // Even when shadow changes the type
+  program = `
+  (let add1
+      (let x 1 (lambda (y) (+ x y)))
+      (let x "hi" (add1 42)))
+  `;
+  assertResult(program, { tag: "TmInt", val: 43 });
+});
+
+Deno.test("shadowing (with type ann)", () => {
   let program = `
   (let add2
       (let x 1 (let x 2 (lambda (y:int) (+ x y))))
@@ -210,7 +317,23 @@ Deno.test("shadowing", () => {
   assertResult(program, { tag: "TmInt", val: 44 });
 });
 
-Deno.test("first class functions", () => {
+Deno.test("shadowing (without type ann)", () => {
+  let program = `
+  (let add2
+      (let x 1 (let x 2 (lambda (y) (+ x y))))
+      (add2 42))
+  `;
+  assertResult(program, { tag: "TmInt", val: 44 });
+  // Even when shadow changes the type
+  program = `
+  (let add2
+      (let x "hi" (let x 2 (lambda (y) (+ x y))))
+      (add2 42))
+  `;
+  assertResult(program, { tag: "TmInt", val: 44 });
+});
+
+Deno.test("first class functions (with type ann)", () => {
   let program = `
   (let doTwice
       (lambda (f : (-> ( int) int) x: int) (f (f x)))
@@ -221,7 +344,18 @@ Deno.test("first class functions", () => {
   assertResult(program, { tag: "TmInt", val: 7 });
 });
 
-Deno.test("[TypeError] first class functions", () => {
+Deno.test("first class functions (without type ann)", () => {
+  let program = `
+  (let doTwice
+      (lambda (f x) (f (f x)))
+      (let add1
+          (lambda (x) (+ x 1))
+          (doTwice add1 5)))
+  `;
+  assertResult(program, { tag: "TmInt", val: 7 });
+});
+
+Deno.test("[TypeError] first class functions (with type ann)", () => {
   let program = `
   (let doTwice
       (lambda (f : (-> ( int ) int) x: int) (f (f x)))
@@ -240,7 +374,28 @@ Deno.test("[TypeError] first class functions", () => {
   expectTypeError(program);
 });
 
-Deno.test("first class function with stdlib", () => {
+Deno.test("[TypeError] first class functions (without type ann)", () => {
+  let program = `
+  (let doTwice
+      (lambda (f x) (f (f x)))
+      (let add1
+          (lambda (x) (+ x 1))
+          (doTwice add1 "hi")))
+  `;
+  expectTypeError(program);
+
+  // no type error here! Unlike version with type ann
+  program = `
+  (let doTwice
+      (lambda (f x) (f (f x)))
+      (let add1
+          (lambda (x) (string-concat x "world"))
+          (doTwice add1 "hi")))
+  `;
+  assertResult(program, { tag: "TmStr", val: "hiworldworld" });
+});
+
+Deno.test("first class function with stdlib (with type ann)", () => {
   let program = `
   (let doTwice
       (lambda (f:(-> (int int) int) x:int y:int) (f x (f x y)))
@@ -255,7 +410,22 @@ Deno.test("first class function with stdlib", () => {
   assertResult(program, { tag: "TmStr", val: "BeBe Rhexa" });
 });
 
-Deno.test("[TypeError] first class functions", () => {
+Deno.test("first class function with stdlib (without type ann)", () => {
+  let program = `
+  (let doTwice
+      (lambda (f x y) (f x (f x y)))
+      (doTwice + 5 8))
+  `;
+  assertResult(program, { tag: "TmInt", val: 18 });
+  program = `
+  (let doTwice
+      (lambda (f x y) (f x (f x y)))
+      (doTwice string-concat "Be" " Rhexa"))
+  `;
+  assertResult(program, { tag: "TmStr", val: "BeBe Rhexa" });
+});
+
+Deno.test("[TypeError] first class functions (with type ann)", () => {
   let program = `
   (let doTwice
     (lambda (f:(-> (int int) int) x:int y:int) (f x (f x y)))
@@ -277,6 +447,33 @@ Deno.test("[TypeError] first class functions", () => {
   program = `
   (let doTwice
     (lambda (f:(-> (str str) str) x:str y:str) (f x (f x y)))
+    (doTwice string-concat 2 " Rhexa"))
+  `;
+  expectTypeError(program);
+});
+
+Deno.test("[TypeError] first class functions (without type ann)", () => {
+  let program = `
+  (let doTwice
+    (lambda (f x y) (f x (f x y)))
+    (doTwice string-concat 5 8))
+  `;
+  expectTypeError(program);
+  program = `
+  (let doTwice
+    (lambda (f x y) (f x (f x y)))
+    (doTwice + 5 "hi"))
+  `;
+  expectTypeError(program);
+  program = `
+  (let doTwice
+    (lambda (f x y) (f x (f x y)))
+    (doTwice + "Be" " Rhexa"))
+  `;
+  expectTypeError(program);
+  program = `
+  (let doTwice
+    (lambda (f x y) (f x (f x y)))
     (doTwice string-concat 2 " Rhexa"))
   `;
   expectTypeError(program);
