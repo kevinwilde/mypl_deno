@@ -14,7 +14,11 @@ export type Term =
       | Value
       | { tag: "TmVar"; name: string }
       | { tag: "TmIf"; cond: Term; then: Term; else: Term }
-      | { tag: "TmAbs"; params: { name: string; typeAnn: Type }[]; body: Term }
+      | {
+        tag: "TmAbs";
+        params: { name: string; typeAnn: Type | null }[];
+        body: Term;
+      }
       | { tag: "TmApp"; func: Term; args: Term[] }
       | { tag: "TmLet"; name: string; val: Term; body: Term }
     );
@@ -78,19 +82,14 @@ export function createAST(lexer: Lexer): Term {
               } else if (next.token.tag === "RPAREN") {
                 break;
               } else if (next.token.tag === "IDEN") {
-                const colon = lexer.nextToken();
-                if (colon === null) {
-                  throw new EOFError();
+                let typeAnn: Type | null = null;
+                if (lexer.peek() && lexer.peek()?.token.tag === "COLON") {
+                  const colon = lexer.nextToken();
+                  if (colon === null || colon.token.tag !== "COLON") {
+                    throw new Error();
+                  }
+                  typeAnn = parseTypeAnn(lexer);
                 }
-                if (
-                  colon.token.tag !== "COLON"
-                ) {
-                  throw new ParseError(
-                    `Unexpected token: expected \`:\` but got ${colon.token.tag}`,
-                    colon.info,
-                  );
-                }
-                const typeAnn = parseTypeAnn(lexer);
                 params.push({ name: next.token.name, typeAnn });
               } else {
                 throw new ParseError("Unexpected token", next.info);
