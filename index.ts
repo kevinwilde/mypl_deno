@@ -34,7 +34,7 @@ function printErrorTestCase(program: string) {
           program.substring(e.sourceInfo.startIdx - 3, e.sourceInfo.endIdx + 3),
         );
         console.log(
-          " ".repeat(3) +
+          " ".repeat(Math.min(3, e.sourceInfo.startIdx)) +
             ("^".repeat(e.sourceInfo.endIdx - e.sourceInfo.startIdx)) +
             " ".repeat(3),
         );

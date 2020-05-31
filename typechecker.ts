@@ -10,11 +10,16 @@ export type Type =
   | { tag: "TyArrow"; paramTypes: Type[]; returnType: Type }
   | { tag: "TyId"; name: string };
 
+type TypeWithInfo = {
+  info: SourceInfo;
+  type: Type;
+};
+
 type Context = { name: string; type: Type }[];
 
 export function typeCheck(term: Term) {
   const [type, _, constraints] = recon([], uniqVarGen, term);
-  const resultConstraints = unify(term.info, [], "hi kevin", constraints);
+  const resultConstraints = unify(constraints);
   const finalType = applySubst(resultConstraints, type);
   return finalType;
 }
@@ -28,7 +33,7 @@ function getTypeFromContext(ctx: Context, varName: string): Type {
   throw new Error(`Unbound variable: ${varName}`);
 }
 
-type Constraints = ([Type, Type])[];
+type Constraints = ([TypeWithInfo, TypeWithInfo])[];
 type NextUniqVar = { varName: string; generator: () => NextUniqVar };
 function uniqVarGen() {
   function helper(n: number) {
@@ -44,22 +49,37 @@ function recon(
   ctx: Context,
   nextUniqVarGenerator: NextUniqVar["generator"],
   term: Term,
-): [Type, NextUniqVar["generator"], Constraints] {
+): [TypeWithInfo, NextUniqVar["generator"], Constraints] {
   switch (term.term.tag) {
     case "TmBool": {
-      return [{ tag: "TyBool" }, nextUniqVarGenerator, []];
+      return [
+        { info: term.info, type: { tag: "TyBool" } },
+        nextUniqVarGenerator,
+        [],
+      ];
     }
     case "TmInt": {
-      return [{ tag: "TyInt" }, nextUniqVarGenerator, []];
+      return [
+        { info: term.info, type: { tag: "TyInt" } },
+        nextUniqVarGenerator,
+        [],
+      ];
     }
     case "TmStr": {
-      return [{ tag: "TyStr" }, nextUniqVarGenerator, []];
+      return [
+        { info: term.info, type: { tag: "TyStr" } },
+        nextUniqVarGenerator,
+        [],
+      ];
     }
     case "TmVar": {
       const tyVar = getTypeFromContext(ctx, term.term.name);
-      return [tyVar, nextUniqVarGenerator, []];
+      return [{ info: term.info, type: tyVar }, nextUniqVarGenerator, []];
     }
     case "TmIf": {
+      // 1 - cond
+      // 2 - then
+      // 3 - else
       const [tyT1, nextUniqVar1, constr1] = recon(
         ctx,
         nextUniqVarGenerator,
@@ -76,7 +96,7 @@ function recon(
         term.term.else,
       );
       const newConstraints: Constraints = [
-        [tyT1, { tag: "TyBool" }], // cond must have type bool
+        [{ info: term.term.cond.info, type: { tag: "TyBool" } }, tyT1], // cond must have type bool
         [tyT2, tyT3], // then and else must have same type
       ];
       return [
@@ -86,6 +106,8 @@ function recon(
       ];
     }
     case "TmLet": {
+      // 1 - value
+      // 2 - body
       const [tyT1, nextUniqVar1, constr1] = recon(
         ctx,
         nextUniqVarGenerator,
@@ -93,7 +115,7 @@ function recon(
       );
 
       const [tyT2, nextUniqVar2, constr2] = recon(
-        [{ name: term.term.name, type: tyT1 }, ...ctx],
+        [{ name: term.term.name, type: tyT1.type }, ...ctx],
         nextUniqVar1,
         term.term.body,
       );
@@ -105,6 +127,8 @@ function recon(
       ];
     }
     case "TmAbs": {
+      // paramTypes
+      // 2 - body
       const paramsCtx: Context = [];
       let nextNextUniqVar = nextUniqVarGenerator;
       for (const p of term.term.params) {
@@ -122,15 +146,20 @@ function recon(
       );
       return [
         {
-          tag: "TyArrow",
-          paramTypes: paramsCtx.map((e) => e.type),
-          returnType: tyT2,
+          info: term.info,
+          type: {
+            tag: "TyArrow",
+            paramTypes: paramsCtx.map((e) => e.type),
+            returnType: tyT2.type,
+          },
         },
         nextUniqVar2,
         constr2,
       ];
     }
     case "TmApp": {
+      // 1 - func
+      // argTypes
       const [tyT1, nextUniqVar1, constr1] = recon(
         ctx,
         nextUniqVarGenerator,
@@ -151,14 +180,17 @@ function recon(
       const newConstraint: Constraints[0] = [
         tyT1,
         {
-          tag: "TyArrow",
-          paramTypes: argTypes,
-          returnType: { tag: "TyId", name: varName },
+          info: term.info,
+          type: {
+            tag: "TyArrow",
+            paramTypes: argTypes.map((a) => a.type),
+            returnType: { tag: "TyId", name: varName },
+          },
         },
       ];
 
       return [
-        { tag: "TyId", name: varName },
+        { info: term.info, type: { tag: "TyId", name: varName } },
         generator,
         [newConstraint, ...constr1, ...argConstraints],
       ];
@@ -170,7 +202,7 @@ function recon(
   }
 }
 
-type Substitutions = ([Type, Type])[];
+type Substitutions = ([TypeWithInfo, TypeWithInfo])[];
 
 function substituteInTy(tyX: string, tyT: Type, tyS: Type) {
   function f(tyS: Type): Type {
@@ -201,11 +233,11 @@ function substituteInTy(tyX: string, tyT: Type, tyS: Type) {
   return f(tyS);
 }
 
-function applySubst(constraints: Constraints, tyT: Type) {
+function applySubst(constraints: Constraints, tyT: TypeWithInfo) {
   return constraints.reverse().reduce((tyS, [tyId, tyC2]) => {
-    if (tyId.tag !== "TyId") throw new Error();
-    return substituteInTy(tyId.name, tyC2, tyS);
-  }, tyT);
+    if (tyId.type.tag !== "TyId") throw new Error();
+    return substituteInTy(tyId.type.name, tyC2.type, tyS);
+  }, tyT.type);
 }
 
 function substituteInConstr(
@@ -215,7 +247,10 @@ function substituteInConstr(
 ): Substitutions {
   return constraints.map((
     [tyS1, tyS2],
-  ) => [substituteInTy(tyX, tyT, tyS1), substituteInTy(tyX, tyT, tyS2)]);
+  ) => [
+    { info: tyS1.info, type: substituteInTy(tyX, tyT, tyS1.type) },
+    { info: tyS2.info, type: substituteInTy(tyX, tyT, tyS2.type) },
+  ]);
 }
 
 function occursIn(tyX: string, tyT: Type) {
@@ -242,9 +277,6 @@ function occursIn(tyX: string, tyT: Type) {
 }
 
 function unify(
-  info: SourceInfo,
-  ctx: Context,
-  errMsg: string,
   constraints: Constraints,
 ) {
   function helper(constraints: Constraints): Constraints {
@@ -253,42 +285,53 @@ function unify(
     }
     const [tyS, tyT] = constraints[0];
     const restConstraints = constraints.slice(1);
-    if (tyS.tag === "TyId" && tyT.tag === "TyId" && tyS.name === tyT.name) {
+    if (
+      tyS.type.tag === "TyId" && tyT.type.tag === "TyId" &&
+      tyS.type.name === tyT.type.name
+    ) {
       return helper(restConstraints);
-    } else if (tyT.tag === "TyId") {
-      if (occursIn(tyT.name, tyS)) {
-        throw new TypeError(errMsg + ": circular constraints", info);
+    } else if (tyT.type.tag === "TyId") {
+      if (occursIn(tyT.type.name, tyS.type)) {
+        throw new TypeError(`circular constraints`, tyS.info); // TODO tyT.info or tyS.info?
       }
       return [
-        [{ tag: "TyId", name: tyT.name }, tyS],
-        ...helper(substituteInConstr(tyT.name, tyS, restConstraints)),
+        [{ info: tyT.info, type: { tag: "TyId", name: tyT.type.name } }, tyS],
+        ...helper(substituteInConstr(tyT.type.name, tyS.type, restConstraints)),
       ];
-    } else if (tyS.tag === "TyId") {
-      if (occursIn(tyS.name, tyT)) {
-        throw new TypeError(errMsg + ": circular constraints", info);
+    } else if (tyS.type.tag === "TyId") {
+      if (occursIn(tyS.type.name, tyT.type)) {
+        throw new TypeError(`circular constraints`, tyT.info); // TODO tyT.info or tyS.info?
       }
       return [
-        [{ tag: "TyId", name: tyS.name }, tyT],
-        ...helper(substituteInConstr(tyS.name, tyT, restConstraints)),
+        [{ info: tyS.info, type: { tag: "TyId", name: tyS.type.name } }, tyT],
+        ...helper(substituteInConstr(tyS.type.name, tyT.type, restConstraints)),
       ];
-    } else if (tyS.tag === tyT.tag) {
-      switch (tyS.tag) {
+    } else if (tyS.type.tag === tyT.type.tag) {
+      switch (tyS.type.tag) {
         case "TyBool":
         case "TyInt":
         case "TyStr":
           return helper(restConstraints);
         case "TyArrow": {
-          if (tyT.tag !== "TyArrow") throw new Error();
-          if (tyS.paramTypes.length !== tyT.paramTypes.length) {
-            throw new TypeError("Unsolvable constraints", info);
+          if (tyT.type.tag !== "TyArrow") throw new Error();
+          if (tyS.type.paramTypes.length !== tyT.type.paramTypes.length) {
+            throw new TypeError(
+              `Unsolvable constraints: expected ${tyS.type.paramTypes.length} arguments but got ${tyT.type.paramTypes.length}`,
+              tyT.info,
+            );
           }
           const paramConstraints: Constraints = [];
-          for (let i = 0; i < tyS.paramTypes.length; i++) {
-            paramConstraints.push([tyS.paramTypes[i], tyT.paramTypes[i]]);
+          for (let i = 0; i < tyS.type.paramTypes.length; i++) {
+            paramConstraints.push(
+              [
+                { info: tyS.info, type: tyS.type.paramTypes[i] },
+                { info: tyT.info, type: tyT.type.paramTypes[i] },
+              ],
+            );
           }
           const returnConstraint: Constraints[0] = [
-            tyS.returnType,
-            tyT.returnType,
+            { info: tyS.info, type: tyS.type.returnType },
+            { info: tyT.info, type: tyT.type.returnType },
           ];
           return helper(
             [
@@ -299,12 +342,15 @@ function unify(
           );
         }
         default: {
-          const _exhaustiveCheck: never = tyS;
+          const _exhaustiveCheck: never = tyS.type;
           throw new Error();
         }
       }
-    } else if (tyS.tag !== tyT.tag) {
-      throw new TypeError("Unsolvable constraints", info);
+    } else if (tyS.type.tag !== tyT.type.tag) {
+      throw new TypeError(
+        `Unsolvable constraints, expected type ${tyS.type.tag}, but got ${tyT.type.tag}`,
+        tyT.info,
+      );
     } else {
       throw new Error();
     }

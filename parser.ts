@@ -7,22 +7,21 @@ export type Value =
   | { tag: "TmInt"; val: number }
   | { tag: "TmStr"; val: string };
 
-export type Term =
-  & { info: SourceInfo }
-  & {
-    term: (
-      | Value
-      | { tag: "TmVar"; name: string }
-      | { tag: "TmIf"; cond: Term; then: Term; else: Term }
-      | {
-        tag: "TmAbs";
-        params: { name: string; typeAnn: Type | null }[];
-        body: Term;
-      }
-      | { tag: "TmApp"; func: Term; args: Term[] }
-      | { tag: "TmLet"; name: string; val: Term; body: Term }
-    );
-  };
+export type Term = {
+  info: SourceInfo;
+  term: (
+    | Value
+    | { tag: "TmVar"; name: string }
+    | { tag: "TmIf"; cond: Term; then: Term; else: Term }
+    | {
+      tag: "TmAbs";
+      params: { name: string; typeAnn: Type | null }[];
+      body: Term;
+    }
+    | { tag: "TmApp"; func: Term; args: Term[] }
+    | { tag: "TmLet"; name: string; val: Term; body: Term }
+  );
+};
 
 export function createAST(lexer: Lexer): Term {
   function getNextTerm(): Term | null {
