@@ -202,8 +202,6 @@ function recon(
   }
 }
 
-type Substitutions = ([TypeWithInfo, TypeWithInfo])[];
-
 function substituteInTy(tyX: string, tyT: Type, tyS: Type) {
   function f(tyS: Type): Type {
     switch (tyS.tag) {
@@ -244,7 +242,7 @@ function substituteInConstr(
   tyX: string,
   tyT: Type,
   constraints: Constraints,
-): Substitutions {
+): Constraints {
   return constraints.map((
     [tyS1, tyS2],
   ) => [
