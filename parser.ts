@@ -6,6 +6,8 @@ type Term = (
   | { tag: "TmBool"; val: boolean }
   | { tag: "TmInt"; val: number }
   | { tag: "TmStr"; val: string }
+  | { tag: "TmEmpty" } // TODO sep term or global var?
+  | { tag: "TmCons"; car: TermWithInfo; cdr: TermWithInfo }
   | { tag: "TmRecord"; fields: Record<string, TermWithInfo> }
   | { tag: "TmProj"; record: TermWithInfo; fieldName: string } // record should be TmRecord when well-formed
   | { tag: "TmVar"; name: string }
@@ -51,8 +53,13 @@ export function createAST(lexer: Lexer): TermWithInfo {
         return { info: cur.info, term: { tag: "TmInt", val: cur.token.val } };
       case "STR":
         return { info: cur.info, term: { tag: "TmStr", val: cur.token.val } };
-      case "IDEN":
+      case "IDEN": {
+        // TODO ugh need to sort out built-ins vs globals vs standard lib
+        if (cur.token.name === "empty") {
+          return { info: cur.info, term: { tag: "TmEmpty" } };
+        }
         return { info: cur.info, term: { tag: "TmVar", name: cur.token.name } };
+      }
       case "LCURLY": {
         const fields: Record<string, TermWithInfo> = {};
         while (true) {
@@ -215,7 +222,28 @@ export function createAST(lexer: Lexer): TermWithInfo {
             // Special cases for IDEN -- built in operations
             // TODO clean up this in relation to stdlib
             if (nextToken.token.tag === "IDEN") {
-              if (nextToken.token.name === "get-field") {
+              if (nextToken.token.name === "cons") {
+                const cons_ = lexer.nextToken();
+                const car = createAST(lexer);
+                const cdr = createAST(lexer);
+                const closeParen = lexer.nextToken();
+                if (closeParen === null) {
+                  throw new EOFError();
+                }
+                if (closeParen.token.tag !== "RPAREN") {
+                  throw new ParseError(
+                    `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
+                    closeParen.info,
+                  );
+                }
+                return {
+                  info: {
+                    startIdx: cur.info.startIdx,
+                    endIdx: closeParen.info.endIdx,
+                  },
+                  term: { tag: "TmCons", car, cdr },
+                };
+              } else if (nextToken.token.name === "get-field") {
                 const getField_ = lexer.nextToken();
                 const record = createAST(lexer);
                 const fieldName = lexer.nextToken();
@@ -354,59 +382,76 @@ function parseTypeAnn(lexer: Lexer): TypeWithInfo {
       }
     }
     case "LPAREN": {
-      const arrow = lexer.nextToken();
-      if (arrow === null) {
+      const next = lexer.nextToken();
+      if (next === null) {
         throw new EOFError();
-      }
-      if (arrow.token.tag !== "ARROW") {
+      } else if (next.token.tag === "IDEN" && next.token.name === "Listof") {
+        const elementType = parseTypeAnn(lexer);
+
+        const rparen_ = lexer.nextToken();
+        if (rparen_ === null) {
+          throw new EOFError();
+        }
+        if (rparen_.token.tag !== "RPAREN") {
+          throw new ParseError(
+            `Unexpected token: expected \`)\` but got ${rparen_.token.tag}`,
+            rparen_.info,
+          );
+        }
+
+        return {
+          info: { startIdx: cur.info.startIdx, endIdx: rparen_.info.endIdx },
+          type: { tag: "TyList", elementType },
+        };
+      } else if (next.token.tag === "ARROW") {
+        const paramsOpenParen = lexer.nextToken();
+        if (paramsOpenParen === null) {
+          throw new EOFError();
+        }
+        if (paramsOpenParen.token.tag !== "LPAREN") {
+          throw new ParseError(
+            `Unexpected token: expected \`(\` but got ${paramsOpenParen.token.tag}`,
+            paramsOpenParen.info,
+          );
+        }
+        const paramTypes = [];
+        while (lexer.peek() && lexer.peek()?.token.tag !== "RPAREN") {
+          paramTypes.push(parseTypeAnn(lexer));
+        }
+        const paramsCloseParen = lexer.nextToken();
+        if (paramsCloseParen === null) {
+          throw new EOFError();
+        }
+        if (paramsCloseParen.token.tag !== "RPAREN") {
+          throw new ParseError(
+            `Unexpected token: expected \`)\` but got ${paramsCloseParen.token.tag}`,
+            paramsCloseParen.info,
+          );
+        }
+
+        const returnType = parseTypeAnn(lexer);
+
+        const rparen_ = lexer.nextToken();
+        if (rparen_ === null) {
+          throw new EOFError();
+        }
+        if (rparen_.token.tag !== "RPAREN") {
+          throw new ParseError(
+            `Unexpected token: expected \`)\` but got ${rparen_.token.tag}`,
+            rparen_.info,
+          );
+        }
+
+        return {
+          info: { startIdx: cur.info.startIdx, endIdx: rparen_.info.endIdx },
+          type: { tag: "TyArrow", paramTypes, returnType },
+        };
+      } else {
         throw new ParseError(
-          `Unexpected token: expected \`->\` but got ${arrow.token.tag}`,
-          arrow.info,
+          `Unexpected token: ${next.token.tag}`,
+          next.info,
         );
       }
-
-      const paramsOpenParen = lexer.nextToken();
-      if (paramsOpenParen === null) {
-        throw new EOFError();
-      }
-      if (paramsOpenParen.token.tag !== "LPAREN") {
-        throw new ParseError(
-          `Unexpected token: expected \`(\` but got ${paramsOpenParen.token.tag}`,
-          paramsOpenParen.info,
-        );
-      }
-      const paramTypes = [];
-      while (lexer.peek() && lexer.peek()?.token.tag !== "RPAREN") {
-        paramTypes.push(parseTypeAnn(lexer));
-      }
-      const paramsCloseParen = lexer.nextToken();
-      if (paramsCloseParen === null) {
-        throw new EOFError();
-      }
-      if (paramsCloseParen.token.tag !== "RPAREN") {
-        throw new ParseError(
-          `Unexpected token: expected \`)\` but got ${paramsCloseParen.token.tag}`,
-          paramsCloseParen.info,
-        );
-      }
-
-      const returnType = parseTypeAnn(lexer);
-
-      const rparen_ = lexer.nextToken();
-      if (rparen_ === null) {
-        throw new EOFError();
-      }
-      if (rparen_.token.tag !== "RPAREN") {
-        throw new ParseError(
-          `Unexpected token: expected \`)\` but got ${rparen_.token.tag}`,
-          rparen_.info,
-        );
-      }
-
-      return {
-        info: { startIdx: cur.info.startIdx, endIdx: rparen_.info.endIdx },
-        type: { tag: "TyArrow", paramTypes, returnType },
-      };
     }
     default: {
       const _exhaustiveCheck: never = cur.token;

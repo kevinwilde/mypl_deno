@@ -1,6 +1,7 @@
 import { TermWithInfo } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
 import { RuntimeError } from "./exceptions.ts";
+import { prettyPrint } from "./utils.ts";
 
 export function evaluate(ast: TermWithInfo) {
   return interpretInEnv(ast, []);
@@ -12,6 +13,8 @@ export type Value =
   | { tag: "TmBool"; val: boolean }
   | { tag: "TmInt"; val: number }
   | { tag: "TmStr"; val: string }
+  | { tag: "TmEmpty" }
+  | { tag: "TmCons"; car: Value; cdr: Value }
   | { tag: "TmRecord"; fields: Record<string, Value> }
   | { tag: "TmClosure"; params: string[]; body: TermWithInfo; env: Environment }
   | {
@@ -34,6 +37,15 @@ function interpretInEnv(term: TermWithInfo, env: Environment): Value {
       };
     case "TmVar":
       return lookupInEnv(term.term.name, env);
+    case "TmEmpty": {
+      return term.term;
+    }
+    case "TmCons":
+      return {
+        tag: "TmCons",
+        car: interpretInEnv(term.term.car, env),
+        cdr: interpretInEnv(term.term.cdr, env),
+      };
     case "TmRecord": {
       const reducedFields: Record<string, Value> = {};
       for (const [fieldName, fieldTerm] of Object.entries(term.term.fields)) {

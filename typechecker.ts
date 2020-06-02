@@ -8,9 +8,10 @@ type Type =
   | { tag: "TyBool" }
   | { tag: "TyInt" }
   | { tag: "TyStr" }
+  | { tag: "TyList"; elementType: TypeWithInfo }
   | { tag: "TyRecord"; fieldTypes: Record<string, TypeWithInfo> }
   | { tag: "TyArrow"; paramTypes: TypeWithInfo[]; returnType: TypeWithInfo }
-  | { tag: "TyId"; name: string };
+  | { tag: "TyId"; name: symbol };
 
 export type TypeWithInfo = {
   info: SourceInfo;
@@ -20,7 +21,7 @@ export type TypeWithInfo = {
 type Context = { name: string; type: TypeWithInfo }[];
 
 export function typeCheck(term: TermWithInfo) {
-  const [type, _, constraints] = recon([], uniqVarGen, term);
+  const [type, constraints] = recon([], term);
   const resultConstraints = unify(constraints);
   const finalType = applySubst(resultConstraints, type);
   return finalType;
@@ -36,90 +37,110 @@ function getTypeFromContext(ctx: Context, varName: string): Type {
 }
 
 type Constraints = ([TypeWithInfo, TypeWithInfo])[];
-type NextUniqVar = { varName: string; generator: () => NextUniqVar };
-function uniqVarGen() {
-  function helper(n: number) {
-    return {
-      varName: "?X_" + n,
-      generator: () => helper(n + 1),
-    };
-  }
-  return helper(0);
-}
 
 function recon(
   ctx: Context,
-  nextUniqVarGenerator: NextUniqVar["generator"],
   term: TermWithInfo,
-): [TypeWithInfo, NextUniqVar["generator"], Constraints] {
+): [TypeWithInfo, Constraints] {
   switch (term.term.tag) {
     case "TmBool": {
       return [
         { info: term.info, type: { tag: "TyBool" } },
-        nextUniqVarGenerator,
         [],
       ];
     }
     case "TmInt": {
       return [
         { info: term.info, type: { tag: "TyInt" } },
-        nextUniqVarGenerator,
         [],
       ];
     }
     case "TmStr": {
       return [
         { info: term.info, type: { tag: "TyStr" } },
-        nextUniqVarGenerator,
         [],
       ];
     }
     case "TmVar": {
       const tyVar = getTypeFromContext(ctx, term.term.name);
-      return [{ info: term.info, type: tyVar }, nextUniqVarGenerator, []];
+      return [{ info: term.info, type: tyVar }, []];
+    }
+    case "TmEmpty": {
+      return [
+        {
+          info: term.info,
+          type: {
+            tag: "TyList",
+            elementType: {
+              info: term.info,
+              type: { tag: "TyId", name: Symbol() },
+            },
+          },
+        },
+        [],
+      ];
+    }
+    case "TmCons": {
+      // 1 - car
+      // 2 - cdr
+      const [tyT1, constr1] = recon(
+        ctx,
+        term.term.car,
+      );
+      const [tyT2, constr2] = recon(
+        ctx,
+        term.term.cdr,
+      );
+      const newConstraints: Constraints = [
+        [ // car must be element type of cdr
+          {
+            info: tyT1.info,
+            type: {
+              tag: "TyList",
+              elementType: tyT1,
+            },
+          },
+          tyT2,
+        ],
+      ];
+      return [
+        { info: term.info, type: { tag: "TyList", elementType: tyT1 } },
+        [...newConstraints, ...constr1, ...constr2],
+      ];
     }
     case "TmRecord": {
-      let nextNextUniqVar = nextUniqVarGenerator;
       const fieldTypes: Record<string, TypeWithInfo> = {};
       const fieldConstraints = [];
       for (const [fieldName, fieldTerm] of Object.entries(term.term.fields)) {
-        const [tyF, nextUniqVar2, constr2] = recon(
+        const [tyF, constr2] = recon(
           ctx,
-          nextNextUniqVar,
           fieldTerm,
         );
         fieldTypes[fieldName] = tyF;
-        nextNextUniqVar = nextUniqVar2;
         fieldConstraints.push(...constr2);
       }
       return [
         { info: term.info, type: { tag: "TyRecord", fieldTypes } },
-        nextNextUniqVar,
         fieldConstraints,
       ];
     }
     case "TmProj": {
       // 1 - record
-      const [tyT1, nextUniqVar1, constr1] = recon(
+      const [tyT1, constr1] = recon(
         ctx,
-        nextUniqVarGenerator,
         term.term.record,
       );
       let resultType: TypeWithInfo;
-      let nextUniqVar2;
       if (
         tyT1.type.tag === "TyRecord" &&
         (term.term.fieldName in tyT1.type.fieldTypes)
       ) {
         resultType = tyT1.type.fieldTypes[term.term.fieldName];
-        nextUniqVar2 = nextUniqVar1;
       } else {
-        let uniqVar = nextUniqVar1();
         resultType = {
           info: term.term.record.info, // TODO not very granular info
-          type: { tag: "TyId", name: uniqVar.varName },
+          type: { tag: "TyId", name: Symbol() },
         };
-        nextUniqVar2 = uniqVar.generator;
       }
 
       const newConstraints: Constraints = [
@@ -137,7 +158,6 @@ function recon(
 
       return [
         resultType,
-        nextUniqVar2,
         [...newConstraints, ...constr1],
       ];
     }
@@ -145,19 +165,16 @@ function recon(
       // 1 - cond
       // 2 - then
       // 3 - else
-      const [tyT1, nextUniqVar1, constr1] = recon(
+      const [tyT1, constr1] = recon(
         ctx,
-        nextUniqVarGenerator,
         term.term.cond,
       );
-      const [tyT2, nextUniqVar2, constr2] = recon(
+      const [tyT2, constr2] = recon(
         ctx,
-        nextUniqVar1,
         term.term.then,
       );
-      const [tyT3, nextUniqVar3, constr3] = recon(
+      const [tyT3, constr3] = recon(
         ctx,
-        nextUniqVar2,
         term.term.else,
       );
       const newConstraints: Constraints = [
@@ -166,28 +183,24 @@ function recon(
       ];
       return [
         tyT3,
-        nextUniqVar3,
         [...newConstraints, ...constr1, ...constr2, ...constr3],
       ];
     }
     case "TmLet": {
       // 1 - value
       // 2 - body
-      const [tyT1, nextUniqVar1, constr1] = recon(
+      const [tyT1, constr1] = recon(
         ctx,
-        nextUniqVarGenerator,
         term.term.val,
       );
 
-      const [tyT2, nextUniqVar2, constr2] = recon(
+      const [tyT2, constr2] = recon(
         [{ name: term.term.name, type: tyT1 }, ...ctx],
-        nextUniqVar1,
         term.term.body,
       );
 
       return [
         tyT2,
-        nextUniqVar2,
         [...constr1, ...constr2], // TODO ?
       ];
     }
@@ -195,22 +208,18 @@ function recon(
       // paramTypes
       // 2 - body
       const paramsCtx: Context = [];
-      let nextNextUniqVar = nextUniqVarGenerator;
       for (const p of term.term.params) {
-        const { varName, generator } = nextNextUniqVar();
         paramsCtx.push(
           {
             name: p.name,
             type: (p.typeAnn ||
-              { info: term.info, type: { tag: "TyId", name: varName } }),
+              { info: term.info, type: { tag: "TyId", name: Symbol() } }),
           },
         );
-        nextNextUniqVar = generator;
       }
       const newCtx = [...paramsCtx, ...ctx];
-      const [tyT2, nextUniqVar2, constr2] = recon(
+      const [tyT2, constr2] = recon(
         newCtx,
-        nextNextUniqVar,
         term.term.body,
       );
       return [
@@ -222,30 +231,26 @@ function recon(
             returnType: tyT2,
           },
         },
-        nextUniqVar2,
         constr2,
       ];
     }
     case "TmApp": {
       // 1 - func
       // argTypes
-      const [tyT1, nextUniqVar1, constr1] = recon(
+      const [tyT1, constr1] = recon(
         ctx,
-        nextUniqVarGenerator,
         term.term.func,
       );
 
       let argTypes = [];
-      let nextNextUniqVar = nextUniqVar1;
       let argConstraints = [];
       for (const arg of term.term.args) {
-        const [tyT2, nextUniqVar2, constr2] = recon(ctx, nextNextUniqVar, arg);
+        const [tyT2, constr2] = recon(ctx, arg);
         argTypes.push(tyT2);
-        nextNextUniqVar = nextUniqVar2;
         argConstraints.push(...constr2);
       }
 
-      const { varName, generator } = nextNextUniqVar();
+      const tyIdSym = Symbol();
       const newConstraint: Constraints[0] = [
         tyT1,
         {
@@ -255,15 +260,14 @@ function recon(
             paramTypes: argTypes,
             returnType: {
               info: term.info,
-              type: { tag: "TyId", name: varName },
+              type: { tag: "TyId", name: tyIdSym },
             },
           },
         },
       ];
 
       return [
-        { info: term.info, type: { tag: "TyId", name: varName } },
-        generator,
+        { info: term.info, type: { tag: "TyId", name: tyIdSym } },
         [newConstraint, ...constr1, ...argConstraints],
       ];
     }
@@ -275,17 +279,25 @@ function recon(
 }
 
 /**
- * @param tyX name of type to subsitute
+ * @param tyX symbol of type to subsitute
  * @param tyT "known type" of tyX / constraint on tyX
  * @param tyS type to substitute inside of
  */
-function substituteInTy(tyX: string, tyT: Type, tyS: Type) {
+function substituteInTy(tyX: symbol, tyT: Type, tyS: Type) {
   function helper(tyS: Type): Type {
     switch (tyS.tag) {
       case "TyBool":
       case "TyInt":
       case "TyStr":
         return tyS;
+      case "TyList":
+        return {
+          tag: "TyList",
+          elementType: {
+            info: tyS.elementType.info,
+            type: helper(tyS.elementType.type),
+          },
+        };
       case "TyRecord": {
         const substitutedFieldTypes: typeof tyS.fieldTypes = {};
         for (const [fieldName, fieldType] of Object.entries(tyS.fieldTypes)) {
@@ -332,7 +344,7 @@ function applySubst(constraints: Constraints, tyT: TypeWithInfo) {
 }
 
 function substituteInConstr(
-  tyX: string,
+  tyX: symbol,
   tyT: Type,
   constraints: Constraints,
 ): Constraints {
@@ -344,13 +356,15 @@ function substituteInConstr(
   ]);
 }
 
-function occursIn(tyX: string, tyT: Type) {
+function occursIn(tyX: symbol, tyT: Type) {
   function helper(tyT: Type): boolean {
     switch (tyT.tag) {
       case "TyBool":
       case "TyInt":
       case "TyStr":
         return false;
+      case "TyList":
+        return helper(tyT.elementType.type);
       case "TyRecord": {
         for (const [_, fieldType] of Object.entries(tyT.fieldTypes)) {
           if (helper(fieldType.type)) {
@@ -359,13 +373,11 @@ function occursIn(tyX: string, tyT: Type) {
         }
         return false;
       }
-      case "TyArrow": {
+      case "TyArrow":
         return tyT.paramTypes.filter((p) => helper(p.type)).length > 0 ||
           helper(tyT.returnType.type);
-      }
-      case "TyId": {
+      case "TyId":
         return tyT.name === tyX;
-      }
       default: {
         const _exhaustiveCheck: never = tyT;
         throw new Error();
@@ -409,6 +421,14 @@ function unify(constraints: Constraints) {
         case "TyInt":
         case "TyStr":
           return helper(restConstraints);
+        case "TyList": {
+          if (tyT.type.tag !== "TyList") throw new Error();
+          const elementConstraint: Constraints[0] = [
+            tyS.type.elementType,
+            tyT.type.elementType,
+          ];
+          return helper([elementConstraint, ...restConstraints]);
+        }
         case "TyRecord": {
           if (tyT.type.tag !== "TyRecord") throw new Error();
           if (tyS.type.fieldTypes.length !== tyT.type.fieldTypes.length) {

@@ -23,6 +23,12 @@ function assertResult(
         return v2.tag === "TmInt" && v1.val === v2.val;
       case "TmStr":
         return v2.tag === "TmStr" && v1.val === v2.val;
+      case "TmEmpty":
+        return v2.tag === "TmEmpty";
+      case "TmCons":
+        return v2.tag === "TmCons" &&
+          valuesEqual(v1.car, v2.car) &&
+          valuesEqual(v1.cdr, v2.cdr);
       case "TmRecord":
         return v2.tag === "TmRecord" &&
           Object.keys(v1.fields).length === Object.keys(v2.fields).length &&
@@ -679,6 +685,255 @@ Deno.test("type inference on functions with free types", () => {
   );
 });
 
+Deno.test("defining a variable (list)", () => {
+  let program = `(let x (cons 1 (cons 2 (cons 3 empty))) x)`;
+  assertType(program, `(Listof int)`);
+  assertResult(
+    program,
+    {
+      tag: "TmCons",
+      car: { tag: "TmInt", val: 1 },
+      cdr: {
+        tag: "TmCons",
+        car: { tag: "TmInt", val: 2 },
+        cdr: {
+          tag: "TmCons",
+          car: { tag: "TmInt", val: 3 },
+          cdr: { tag: "TmEmpty" },
+        },
+      },
+    },
+  );
+});
+
+Deno.test("defining a variable (nested list)", () => {
+  let program =
+    `(let x (cons (cons 1 (cons 3 empty)) (cons (cons 2 empty) empty)) x)`;
+  assertType(program, `(Listof (Listof int))`);
+  assertResult(
+    program,
+    {
+      tag: "TmCons",
+      car: {
+        tag: "TmCons",
+        car: { tag: "TmInt", val: 1 },
+        cdr: {
+          tag: "TmCons",
+          car: { tag: "TmInt", val: 3 },
+          cdr: { tag: "TmEmpty" },
+        },
+      },
+      cdr: {
+        tag: "TmCons",
+        car: {
+          tag: "TmCons",
+          car: { tag: "TmInt", val: 2 },
+          cdr: { tag: "TmEmpty" },
+        },
+        cdr: { tag: "TmEmpty" },
+      },
+    },
+  );
+});
+
+Deno.test("[TypeError] defining a variable (list)", () => {
+  let program = `(let x (cons 1 (cons "hi" (cons 3 empty))) x)`;
+  expectTypeError(program);
+});
+
+Deno.test("[TypeError] defining a variable (nested list)", () => {
+  let program =
+    `(let x (cons (cons 1 (cons 3 empty)) (cons (cons "hi" empty) empty)) x)`;
+  expectTypeError(program);
+});
+
+Deno.test("accessing car of list", () => {
+  let program = `(car (cons 1 (cons 2 empty)))`;
+  assertType(program, `int`);
+  assertResult(program, { tag: "TmInt", val: 1 });
+});
+
+Deno.test("accessing cdr of list", () => {
+  let program = `(cdr (cons 1 (cons 2 empty)))`;
+  assertType(program, `(Listof int)`);
+  assertResult(
+    program,
+    { tag: "TmCons", car: { tag: "TmInt", val: 2 }, cdr: { tag: "TmEmpty" } },
+  );
+  program = `(cdr (cdr (cons 1 (cons 2 empty))))`;
+  assertType(program, `(Listof int)`);
+  assertResult(program, { tag: "TmEmpty" });
+});
+
+Deno.test("defining a function that takes a list (with type ann)", () => {
+  let program = "(lambda (x:(Listof int)) x)";
+  assertType(program, "(-> ((Listof int)) (Listof int))");
+  program = `(lambda (x:(Listof int)) (car x))`;
+  assertType(program, "(-> ((Listof int)) int)");
+  program = `(lambda (x:(Listof int)) (cdr x))`;
+  assertType(program, "(-> ((Listof int)) (Listof int))");
+  program = `(lambda (x:(Listof int)) (+ 1 (car x)))`;
+  assertType(program, "(-> ((Listof int)) int)");
+});
+
+Deno.test("defining a function that takes a list (without type ann)", () => {
+  let program = "(lambda (x) (empty? x))";
+  assertType(program, "(-> ((Listof 'a)) bool)");
+  program = `(lambda (x) (car x))`;
+  assertType(program, "(-> ((Listof 'a)) 'a)");
+  program = `(lambda (x) (cdr x))`;
+  assertType(program, "(-> ((Listof 'a)) (Listof 'a))");
+  program = `(lambda (x) (+ 1 (car x)))`;
+  assertType(program, "(-> ((Listof int)) int)");
+});
+
+Deno.test("calling a function that takes a list (with type ann)", () => {
+  let program = "((lambda (x:(Listof int)) x) (cons 1 (cons 2 empty)))";
+  assertType(program, "(Listof int)");
+  assertResult(
+    program,
+    {
+      tag: "TmCons",
+      car: { tag: "TmInt", val: 1 },
+      cdr: {
+        tag: "TmCons",
+        car: { tag: "TmInt", val: 2 },
+        cdr: { tag: "TmEmpty" },
+      },
+    },
+  );
+  program = `((lambda (x:(Listof int)) (car x)) (cons 1 (cons 2 empty)))`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = `((lambda (x:(Listof int)) (cdr x)) (cons 1 (cons 2 empty)))`;
+  assertType(program, `(Listof int)`);
+  assertResult(
+    program,
+    { tag: "TmCons", car: { tag: "TmInt", val: 2 }, cdr: { tag: "TmEmpty" } },
+  );
+  program =
+    `((lambda (x:(Listof int)) (+ 41 (car x))) (cons 1 (cons 2 empty)))`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 42 });
+});
+
+Deno.test("calling a function that takes a list (without type ann)", () => {
+  let program = "((lambda (x) x) (cons 1 (cons 2 empty)))";
+  assertType(program, "(Listof int)");
+  assertResult(
+    program,
+    {
+      tag: "TmCons",
+      car: { tag: "TmInt", val: 1 },
+      cdr: {
+        tag: "TmCons",
+        car: { tag: "TmInt", val: 2 },
+        cdr: { tag: "TmEmpty" },
+      },
+    },
+  );
+  program = `((lambda (x) (car x)) (cons 1 (cons 2 empty)))`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = `((lambda (x) (cdr x)) (cons 1 (cons 2 empty)))`;
+  assertType(program, `(Listof int)`);
+  assertResult(
+    program,
+    { tag: "TmCons", car: { tag: "TmInt", val: 2 }, cdr: { tag: "TmEmpty" } },
+  );
+  program = `((lambda (x) (+ 41 (car x))) (cons 1 (cons 2 empty)))`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 42 });
+});
+
+Deno.test("[TypeError] calling a function that takes a list (with type ann)", () => {
+  let program = `((lambda (x:(Listof int)) x) (cons "hi" (cons "bye" empty)))`;
+  expectTypeError(program);
+  program =
+    `((lambda (x:(Listof int)) (string-concat (car x) "world")) (cons 1 (cons 2 empty)))`;
+  expectTypeError(program);
+});
+
+Deno.test("[TypeError] calling a function that takes a list (without type ann)", () => {
+  let program =
+    `((lambda (x) (string-concat (car x) "world")) (cons 1 (cons 2 empty)))`;
+  expectTypeError(program);
+});
+
+Deno.test("recursion with lists (without type ann)", () => {
+  // Ugly because fix only works for 1-argument functions right now
+  // Relying on function f being defined in scope
+  let g = `
+    (lambda (map)
+      (lambda (lst)
+        (if (empty? lst)
+          lst
+          (cons (f (car lst)) (map (cdr lst))))))
+  `;
+  let program = `
+    (let f (lambda (n) (+ n 41))
+        (let map (fix ${g})
+          (map (cons 1 (cons 2 empty)))))
+  `;
+  assertType(program, "(Listof int)");
+  assertResult(
+    program,
+    {
+      tag: "TmCons",
+      car: { tag: "TmInt", val: 42 },
+      cdr: {
+        tag: "TmCons",
+        car: { tag: "TmInt", val: 43 },
+        cdr: { tag: "TmEmpty" },
+      },
+    },
+  );
+  g = `
+  (lambda (filter)
+    (lambda (lst)
+      (if (empty? lst)
+        lst
+        (if (f (car lst))
+            (cons (car lst) (filter (cdr lst)))
+            (filter (cdr lst))))))
+`;
+  program = `
+  (let f (lambda (n) (= n 2))
+      (let filter (fix ${g})
+        (filter (cons 1 (cons 2 empty)))))
+`;
+  assertType(program, "(Listof int)");
+  assertResult(
+    program,
+    {
+      tag: "TmCons",
+      car: { tag: "TmInt", val: 2 },
+      cdr: { tag: "TmEmpty" },
+    },
+  );
+  g = `
+  (lambda (any)
+    (lambda (lst)
+      (if (empty? lst)
+        #f
+        (if (f (car lst)) #t (any (cdr lst))))))
+`;
+  program = `
+  (let f (lambda (n) (= n 2))
+      (let any (fix ${g})
+        (any (cons 1 (cons 2 empty)))))
+`;
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+  program = `
+  (let f (lambda (n) (= n 3))
+      (let any (fix ${g})
+        (any (cons 1 (cons 2 empty)))))
+`;
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: false });
+});
+
 Deno.test("defining a variable (record)", () => {
   let program = `(let x {a:1 d:(if #t "yes" "no") e:#f b:2 c:"hi"} x)`;
   assertType(program, `{a:int b:int c:str d:str e:bool}`);
@@ -722,10 +977,7 @@ Deno.test("nested record", () => {
 Deno.test("accessing field in record", () => {
   let program = `(get-field {a:1 d:(if #t "yes" "no") e:#f b:2 c:"hi"} "a")`;
   assertType(program, `int`);
-  assertResult(
-    program,
-    { tag: "TmInt", val: 1 },
-  );
+  assertResult(program, { tag: "TmInt", val: 1 });
 });
 
 Deno.test("[TypeError] accessing non-existent field in record", () => {
