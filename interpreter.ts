@@ -1,8 +1,8 @@
-import { Term as ParserTerm } from "./parser.ts";
+import { TermWithInfo } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
 import { RuntimeError } from "./exceptions.ts";
 
-export function evaluate(ast: ParserTerm) {
+export function evaluate(ast: TermWithInfo) {
   return interpretInEnv(ast, []);
 }
 
@@ -13,14 +13,13 @@ export type Value =
   | { tag: "TmInt"; val: number }
   | { tag: "TmStr"; val: string }
   | { tag: "TmRecord"; fields: Record<string, Value> }
-  | { tag: "TmClosure"; params: string[]; body: Term; env: Environment }
+  | { tag: "TmClosure"; params: string[]; body: TermWithInfo; env: Environment }
   | {
     tag: "TmStdlibFun";
     impl: (...args: Value[]) => Value;
   };
-type Term = ParserTerm;
 
-function interpretInEnv(term: Term, env: Environment): Value {
+function interpretInEnv(term: TermWithInfo, env: Environment): Value {
   switch (term.term.tag) {
     case "TmBool":
     case "TmInt":

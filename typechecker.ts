@@ -1,15 +1,15 @@
-import { Term } from "./parser.ts";
+import { TermWithInfo } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
 import { TypeError } from "./exceptions.ts";
 import { SourceInfo } from "./lexer.ts";
 import { prettyPrint } from "./utils.ts";
 
-export type Type =
+type Type =
   | { tag: "TyBool" }
   | { tag: "TyInt" }
   | { tag: "TyStr" }
   | { tag: "TyRecord"; fieldTypes: Record<string, TypeWithInfo> }
-  | { tag: "TyArrow"; paramTypes: Type[]; returnType: Type }
+  | { tag: "TyArrow"; paramTypes: TypeWithInfo[]; returnType: TypeWithInfo }
   | { tag: "TyId"; name: string };
 
 export type TypeWithInfo = {
@@ -17,15 +17,11 @@ export type TypeWithInfo = {
   type: Type;
 };
 
-type Context = { name: string; type: Type }[];
+type Context = { name: string; type: TypeWithInfo }[];
 
-export function typeCheck(term: Term) {
+export function typeCheck(term: TermWithInfo) {
   const [type, _, constraints] = recon([], uniqVarGen, term);
-  console.log("initial");
-  console.log(prettyPrint(constraints));
   const resultConstraints = unify(constraints);
-  console.log("unified");
-  console.log(prettyPrint(resultConstraints));
   const finalType = applySubst(resultConstraints, type);
   return finalType;
 }
@@ -33,7 +29,7 @@ export function typeCheck(term: Term) {
 // TODO going to need to handle name clashes
 function getTypeFromContext(ctx: Context, varName: string): Type {
   const result = ctx.find((binding) => binding.name === varName);
-  if (result) return result.type;
+  if (result) return result.type.type;
   const stdLibResult = lookupInStdLib(varName);
   if (stdLibResult) return stdLibResult.type;
   throw new Error(`Unbound variable: ${varName}`);
@@ -54,7 +50,7 @@ function uniqVarGen() {
 function recon(
   ctx: Context,
   nextUniqVarGenerator: NextUniqVar["generator"],
-  term: Term,
+  term: TermWithInfo,
 ): [TypeWithInfo, NextUniqVar["generator"], Constraints] {
   switch (term.term.tag) {
     case "TmBool": {
@@ -184,7 +180,7 @@ function recon(
       );
 
       const [tyT2, nextUniqVar2, constr2] = recon(
-        [{ name: term.term.name, type: tyT1.type }, ...ctx],
+        [{ name: term.term.name, type: tyT1 }, ...ctx],
         nextUniqVar1,
         term.term.body,
       );
@@ -203,7 +199,11 @@ function recon(
       for (const p of term.term.params) {
         const { varName, generator } = nextNextUniqVar();
         paramsCtx.push(
-          { name: p.name, type: p.typeAnn || { tag: "TyId", name: varName } },
+          {
+            name: p.name,
+            type: (p.typeAnn ||
+              { info: term.info, type: { tag: "TyId", name: varName } }),
+          },
         );
         nextNextUniqVar = generator;
       }
@@ -219,7 +219,7 @@ function recon(
           type: {
             tag: "TyArrow",
             paramTypes: paramsCtx.map((e) => e.type),
-            returnType: tyT2.type,
+            returnType: tyT2,
           },
         },
         nextUniqVar2,
@@ -252,8 +252,11 @@ function recon(
           info: term.info,
           type: {
             tag: "TyArrow",
-            paramTypes: argTypes.map((a) => a.type),
-            returnType: { tag: "TyId", name: varName },
+            paramTypes: argTypes,
+            returnType: {
+              info: term.info,
+              type: { tag: "TyId", name: varName },
+            },
           },
         },
       ];
@@ -296,8 +299,14 @@ function substituteInTy(tyX: string, tyT: Type, tyS: Type) {
       case "TyArrow":
         return {
           tag: "TyArrow",
-          paramTypes: tyS.paramTypes.map((p) => helper(p)),
-          returnType: helper(tyS.returnType),
+          paramTypes: tyS.paramTypes.map((p) => ({
+            info: p.info,
+            type: helper(p.type),
+          })),
+          returnType: {
+            info: tyS.returnType.info,
+            type: helper(tyS.returnType.type),
+          },
         };
       case "TyId": {
         if (tyS.name === tyX) {
@@ -351,8 +360,8 @@ function occursIn(tyX: string, tyT: Type) {
         return false;
       }
       case "TyArrow": {
-        return tyT.paramTypes.filter((p) => helper(p)).length > 0 ||
-          helper(tyT.returnType);
+        return tyT.paramTypes.filter((p) => helper(p.type)).length > 0 ||
+          helper(tyT.returnType.type);
       }
       case "TyId": {
         return tyT.name === tyX;
@@ -411,9 +420,6 @@ function unify(constraints: Constraints) {
           const fieldConstraints: Constraints = [];
           for (const [fieldName, _] of Object.entries(tyS.type.fieldTypes)) {
             if (!(fieldName in tyT.type.fieldTypes)) {
-              console.log("hereez");
-              console.log(prettyPrint(tyS));
-              console.log(prettyPrint(tyT));
               throw new TypeError(
                 `Unsolvable constraints: expected field ${fieldName}`,
                 tyT.info,
@@ -442,16 +448,14 @@ function unify(constraints: Constraints) {
           }
           const paramConstraints: Constraints = [];
           for (let i = 0; i < tyS.type.paramTypes.length; i++) {
-            paramConstraints.push(
-              [
-                { info: tyS.info, type: tyS.type.paramTypes[i] },
-                { info: tyT.info, type: tyT.type.paramTypes[i] },
-              ],
-            );
+            paramConstraints.push([
+              tyS.type.paramTypes[i],
+              tyT.type.paramTypes[i],
+            ]);
           }
           const returnConstraint: Constraints[0] = [
-            { info: tyS.info, type: tyS.type.returnType },
-            { info: tyT.info, type: tyT.type.returnType },
+            tyS.type.returnType,
+            tyT.type.returnType,
           ];
           return helper(
             [

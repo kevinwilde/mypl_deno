@@ -1,29 +1,36 @@
 import { Lexer, SourceInfo } from "./lexer.ts";
-import { Type, TypeWithInfo } from "./typechecker.ts";
+import { TypeWithInfo } from "./typechecker.ts";
 import { ParseError, EOFError } from "./exceptions.ts";
 
-export type Term = {
+type Term = (
+  | { tag: "TmBool"; val: boolean }
+  | { tag: "TmInt"; val: number }
+  | { tag: "TmStr"; val: string }
+  | { tag: "TmRecord"; fields: Record<string, TermWithInfo> }
+  | { tag: "TmProj"; record: TermWithInfo; fieldName: string } // record should be TmRecord when well-formed
+  | { tag: "TmVar"; name: string }
+  | {
+    tag: "TmIf";
+    cond: TermWithInfo;
+    then: TermWithInfo;
+    else: TermWithInfo;
+  }
+  | {
+    tag: "TmAbs";
+    params: { name: string; typeAnn: TypeWithInfo | null }[];
+    body: TermWithInfo;
+  }
+  | { tag: "TmApp"; func: TermWithInfo; args: TermWithInfo[] }
+  | { tag: "TmLet"; name: string; val: TermWithInfo; body: TermWithInfo }
+);
+
+export type TermWithInfo = {
   info: SourceInfo;
-  term: (
-    | { tag: "TmBool"; val: boolean }
-    | { tag: "TmInt"; val: number }
-    | { tag: "TmStr"; val: string }
-    | { tag: "TmRecord"; fields: Record<string, Term> }
-    | { tag: "TmProj"; record: Term; fieldName: string } // Should be TmRecord and TmStr when well-formed
-    | { tag: "TmVar"; name: string }
-    | { tag: "TmIf"; cond: Term; then: Term; else: Term }
-    | {
-      tag: "TmAbs";
-      params: { name: string; typeAnn: Type | null }[];
-      body: Term;
-    }
-    | { tag: "TmApp"; func: Term; args: Term[] }
-    | { tag: "TmLet"; name: string; val: Term; body: Term }
-  );
+  term: Term;
 };
 
-export function createAST(lexer: Lexer): Term {
-  function getNextTerm(): Term | null {
+export function createAST(lexer: Lexer): TermWithInfo {
+  function getNextTerm(): TermWithInfo | null {
     const cur = lexer.nextToken();
     if (!cur) {
       throw new EOFError();
@@ -47,7 +54,7 @@ export function createAST(lexer: Lexer): Term {
       case "IDEN":
         return { info: cur.info, term: { tag: "TmVar", name: cur.token.name } };
       case "LCURLY": {
-        const fields: Record<string, Term> = {};
+        const fields: Record<string, TermWithInfo> = {};
         while (true) {
           const next = lexer.nextToken();
           if (!next) {
@@ -109,7 +116,7 @@ export function createAST(lexer: Lexer): Term {
               } else if (next.token.tag === "RPAREN") {
                 break;
               } else if (next.token.tag === "IDEN") {
-                let typeAnn: Type | null = null;
+                let typeAnn: TypeWithInfo | null = null;
                 if (lexer.peek() && lexer.peek()?.token.tag === "COLON") {
                   const colon = lexer.nextToken();
                   if (colon === null || colon.token.tag !== "COLON") {
@@ -285,7 +292,7 @@ export function createAST(lexer: Lexer): Term {
   return result;
 }
 
-function parseTypeAnn(lexer: Lexer): Type {
+function parseTypeAnn(lexer: Lexer): TypeWithInfo {
   const cur = lexer.nextToken();
   if (!cur) {
     throw new EOFError();
@@ -305,11 +312,11 @@ function parseTypeAnn(lexer: Lexer): Type {
     case "IDEN": {
       switch (cur.token.name) {
         case "bool":
-          return { tag: "TyBool" };
+          return { info: cur.info, type: { tag: "TyBool" } };
         case "int":
-          return { tag: "TyInt" };
+          return { info: cur.info, type: { tag: "TyInt" } };
         case "str":
-          return { tag: "TyStr" };
+          return { info: cur.info, type: { tag: "TyStr" } };
         default:
           throw new ParseError(`Unknown type: ${cur.token.name}`, cur.info);
       }
@@ -321,7 +328,10 @@ function parseTypeAnn(lexer: Lexer): Type {
         if (!next) {
           throw new EOFError();
         } else if (next.token.tag === "RCURLY") {
-          return { tag: "TyRecord", fieldTypes };
+          return {
+            info: { startIdx: cur.info.startIdx, endIdx: next.info.endIdx },
+            type: { tag: "TyRecord", fieldTypes },
+          };
         } else if (next.token.tag === "IDEN") {
           const fieldName = next.token.name;
           const colon = lexer.nextToken();
@@ -334,8 +344,7 @@ function parseTypeAnn(lexer: Lexer): Type {
               colon.info,
             );
           }
-          const fieldType = parseTypeAnn(lexer);
-          fieldTypes[fieldName] = { type: fieldType, info: next.info };
+          fieldTypes[fieldName] = parseTypeAnn(lexer);
         } else {
           throw new ParseError(
             `Unexpected token: ${next.token.tag}`,
@@ -394,7 +403,10 @@ function parseTypeAnn(lexer: Lexer): Type {
         );
       }
 
-      return { tag: "TyArrow", paramTypes, returnType };
+      return {
+        info: { startIdx: cur.info.startIdx, endIdx: rparen_.info.endIdx },
+        type: { tag: "TyArrow", paramTypes, returnType },
+      };
     }
     default: {
       const _exhaustiveCheck: never = cur.token;
