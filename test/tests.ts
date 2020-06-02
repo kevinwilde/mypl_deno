@@ -12,25 +12,34 @@ function assertResult(
   const ast = createAST(lexer);
   const _ = typeCheck(ast);
   const actualResult = evaluate(ast);
-  function getTestResult() {
-    switch (actualResult.tag) {
+  function valuesEqual(
+    v1: ReturnType<typeof evaluate>,
+    v2: ReturnType<typeof evaluate>,
+  ): boolean {
+    switch (v1.tag) {
       case "TmBool":
-        return expectedResult.tag === "TmBool" &&
-          actualResult.val === expectedResult.val;
+        return v2.tag === "TmBool" && v1.val === v2.val;
       case "TmInt":
-        return expectedResult.tag === "TmInt" &&
-          actualResult.val === expectedResult.val;
+        return v2.tag === "TmInt" && v1.val === v2.val;
       case "TmStr":
-        return expectedResult.tag === "TmStr" &&
-          actualResult.val === expectedResult.val;
+        return v2.tag === "TmStr" && v1.val === v2.val;
+      case "TmRecord":
+        return v2.tag === "TmRecord" &&
+          Object.keys(v1.fields).length === Object.keys(v2.fields).length &&
+          Object.keys(v1.fields).every((k) =>
+            v2.fields[k] !== undefined &&
+            valuesEqual(v1.fields[k], v2.fields[k])
+          );
       case "TmStdlibFun":
       case "TmClosure":
         return false; // TODO ?
-      default:
-        const _exhaustiveCheck: never = actualResult;
+      default: {
+        const _exhaustiveCheck: never = v1;
+        throw new Error();
+      }
     }
   }
-  const success = getTestResult();
+  const success = valuesEqual(actualResult, expectedResult);
   if (!success) {
     console.log("AST:");
     console.log(prettyPrint(ast));
@@ -541,6 +550,18 @@ Deno.test("[TypeError] first class functions (without type ann)", () => {
   expectTypeError(program);
 });
 
+Deno.test("fix add1", () => {
+  const g = `
+    (lambda (add1)
+      (lambda (n)
+        (+ 1 n)))
+  `;
+  let program = `(let add1 (fix ${g}) (add1 0))`;
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = `(let add1 (fix ${g}) (add1 1))`;
+  assertResult(program, { tag: "TmInt", val: 2 });
+});
+
 Deno.test("naive factorial (with type ann)", () => {
   const g = `
     (lambda (fct: (-> (int) int))
@@ -656,4 +677,156 @@ Deno.test("type inference on functions with free types", () => {
     program,
     "(-> (bool int 'a 'b 'c 'd 'e 'f 'g 'h 'i 'j 'k 'l 'm 'n 'o) int)",
   );
+});
+
+Deno.test("defining a variable (record)", () => {
+  let program = `(let x {a:1 d:(if #t "yes" "no") e:#f b:2 c:"hi"} x)`;
+  assertType(program, `{a:int b:int c:str d:str e:bool}`);
+  assertResult(
+    program,
+    {
+      tag: "TmRecord",
+      fields: {
+        a: { tag: "TmInt", val: 1 },
+        b: { tag: "TmInt", val: 2 },
+        c: { tag: "TmStr", val: "hi" },
+        d: { tag: "TmStr", val: "yes" },
+        e: { tag: "TmBool", val: false },
+      },
+    },
+  );
+});
+
+Deno.test("nested record", () => {
+  let program = `{a:1 b:(if #t "yes" "no") z: {b:2 c:"hi"}}`;
+  assertType(program, `{a:int b:str z:{b:int c:str}}`);
+  assertResult(
+    program,
+    {
+      tag: "TmRecord",
+      fields: {
+        a: { tag: "TmInt", val: 1 },
+        b: { tag: "TmStr", val: "yes" },
+        z: {
+          tag: "TmRecord",
+          fields: {
+            b: { tag: "TmInt", val: 2 },
+            c: { tag: "TmStr", val: "hi" },
+          },
+        },
+      },
+    },
+  );
+});
+
+Deno.test("accessing field in record", () => {
+  let program = `(get-field {a:1 d:(if #t "yes" "no") e:#f b:2 c:"hi"} "a")`;
+  assertType(program, `int`);
+  assertResult(
+    program,
+    { tag: "TmInt", val: 1 },
+  );
+});
+
+Deno.test("[TypeError] accessing non-existent field in record", () => {
+  let program = `(get-field {a:1 d:(if #t "yes" "no") e:#f b:2 c:"hi"} "aa")`;
+  expectTypeError(program);
+});
+
+Deno.test("accessing nested field in nested record", () => {
+  let program = `(get-field {a:1 b:(if #t "yes" "no") z: {b:2 c:"hi"}} "z")`;
+  assertType(program, `{b:int c:str}`);
+  assertResult(
+    program,
+    {
+      tag: "TmRecord",
+      fields: {
+        b: { tag: "TmInt", val: 2 },
+        c: { tag: "TmStr", val: "hi" },
+      },
+    },
+  );
+  program =
+    `(get-field (get-field {a:1 b:(if #t "yes" "no") z: {b:2 c:"hi"}} "z") "c")`;
+  assertType(program, `str`);
+  assertResult(program, { tag: "TmStr", val: "hi" });
+});
+
+Deno.test("[TypeError] accessing nested field in nested record", () => {
+  let program = `(get-field {a:1 b:(if #t "yes" "no") z: {b:2 c:"hi"}} "c")`;
+  expectTypeError(program);
+  program =
+    `(get-field (get-field {a:1 b:(if #t "yes" "no") z: {b:2 c:"hi"}} "z") "a")`;
+  expectTypeError(program);
+});
+
+Deno.test("defining a function that takes a record (with type ann)", () => {
+  let program = "(lambda (x:{a:int b:str}) x)";
+  assertType(program, "(-> ({a:int b:str}) {a:int b:str})");
+  program = `(lambda (x:{a:int b:str}) (get-field x "a"))`;
+  assertType(program, "(-> ({a:int b:str}) int)");
+  program = `(lambda (x:{a:int b:str}) (get-field x "b"))`;
+  assertType(program, "(-> ({a:int b:str}) str)");
+});
+
+Deno.test("defining a function that takes a record (without type ann)", () => {
+  let program = "(lambda (x) x)";
+  assertType(program, "(-> ('a) 'a)");
+  program = `(lambda (x) (get-field x "a"))`;
+  assertType(program, "(-> ({a:'a}) 'a)");
+  program = `(lambda (x) (get-field x "b"))`;
+  assertType(program, "(-> ({b:'a}) 'a)");
+});
+
+Deno.test("calling a function that takes a record (with type ann)", () => {
+  let program = `((lambda (x:{a:int b:str}) x) {a:7 b:"hi"})`;
+  assertType(program, "{a:int b:str}");
+  assertResult(
+    program,
+    {
+      tag: "TmRecord",
+      fields: { a: { tag: "TmInt", val: 7 }, b: { tag: "TmStr", val: "hi" } },
+    },
+  );
+  program = `((lambda (x:{a:int b:str}) (get-field x "a"))  {a:7 b:"hi"})`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 7 });
+  program = `((lambda (x:{a:int b:str}) (get-field x "b")) {a:7 b:"hi"})`;
+  assertType(program, "str");
+  assertResult(program, { tag: "TmStr", val: "hi" });
+});
+
+Deno.test("calling a function that takes a record (without type ann)", () => {
+  let program = `((lambda (x) x) {a:7 b:"hi"})`;
+  assertType(program, "{a:int b:str}");
+  assertResult(
+    program,
+    {
+      tag: "TmRecord",
+      fields: { a: { tag: "TmInt", val: 7 }, b: { tag: "TmStr", val: "hi" } },
+    },
+  );
+  program = `((lambda (x) (get-field x "a"))  {a:7 b:"hi"})`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 7 });
+  program = `(+ 1 ((lambda (x) (get-field x "a"))  {a:7 b:"hi"}))`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 8 });
+  program = `((lambda (x) (get-field x "b")) {a:7 b:"hi"})`;
+  assertType(program, "str");
+  assertResult(program, { tag: "TmStr", val: "hi" });
+});
+
+Deno.test("[TypeError] calling a function that takes a record (with type ann)", () => {
+  let program = `((lambda (x:{a:int b:str}) x) {a:7})`;
+  expectTypeError(program);
+  program = `((lambda (x:{a:int b:str}) (get-field x "a"))  {a:7})`;
+  expectTypeError(program);
+  program = `((lambda (x:{c:int}) (get-field x "a"))  {c:7})`;
+  expectTypeError(program);
+});
+
+Deno.test("[TypeError] calling a function that takes a record (without type ann)", () => {
+  let program = `((lambda (x) (get-field x "a"))  {c:7})`;
+  expectTypeError(program);
 });

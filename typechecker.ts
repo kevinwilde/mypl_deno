@@ -2,15 +2,17 @@ import { Term } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
 import { TypeError } from "./exceptions.ts";
 import { SourceInfo } from "./lexer.ts";
+import { prettyPrint } from "./utils.ts";
 
 export type Type =
   | { tag: "TyBool" }
   | { tag: "TyInt" }
   | { tag: "TyStr" }
+  | { tag: "TyRecord"; fieldTypes: Record<string, TypeWithInfo> }
   | { tag: "TyArrow"; paramTypes: Type[]; returnType: Type }
   | { tag: "TyId"; name: string };
 
-type TypeWithInfo = {
+export type TypeWithInfo = {
   info: SourceInfo;
   type: Type;
 };
@@ -19,7 +21,11 @@ type Context = { name: string; type: Type }[];
 
 export function typeCheck(term: Term) {
   const [type, _, constraints] = recon([], uniqVarGen, term);
+  console.log("initial");
+  console.log(prettyPrint(constraints));
   const resultConstraints = unify(constraints);
+  console.log("unified");
+  console.log(prettyPrint(resultConstraints));
   const finalType = applySubst(resultConstraints, type);
   return finalType;
 }
@@ -75,6 +81,69 @@ function recon(
     case "TmVar": {
       const tyVar = getTypeFromContext(ctx, term.term.name);
       return [{ info: term.info, type: tyVar }, nextUniqVarGenerator, []];
+    }
+    case "TmRecord": {
+      let nextNextUniqVar = nextUniqVarGenerator;
+      const fieldTypes: Record<string, TypeWithInfo> = {};
+      const fieldConstraints = [];
+      for (const [fieldName, fieldTerm] of Object.entries(term.term.fields)) {
+        const [tyF, nextUniqVar2, constr2] = recon(
+          ctx,
+          nextNextUniqVar,
+          fieldTerm,
+        );
+        fieldTypes[fieldName] = tyF;
+        nextNextUniqVar = nextUniqVar2;
+        fieldConstraints.push(...constr2);
+      }
+      return [
+        { info: term.info, type: { tag: "TyRecord", fieldTypes } },
+        nextNextUniqVar,
+        fieldConstraints,
+      ];
+    }
+    case "TmProj": {
+      // 1 - record
+      const [tyT1, nextUniqVar1, constr1] = recon(
+        ctx,
+        nextUniqVarGenerator,
+        term.term.record,
+      );
+      let resultType: TypeWithInfo;
+      let nextUniqVar2;
+      if (
+        tyT1.type.tag === "TyRecord" &&
+        (term.term.fieldName in tyT1.type.fieldTypes)
+      ) {
+        resultType = tyT1.type.fieldTypes[term.term.fieldName];
+        nextUniqVar2 = nextUniqVar1;
+      } else {
+        let uniqVar = nextUniqVar1();
+        resultType = {
+          info: term.term.record.info, // TODO not very granular info
+          type: { tag: "TyId", name: uniqVar.varName },
+        };
+        nextUniqVar2 = uniqVar.generator;
+      }
+
+      const newConstraints: Constraints = [
+        [
+          {
+            info: term.term.record.info,
+            type: {
+              tag: "TyRecord",
+              fieldTypes: { [term.term.fieldName]: resultType },
+            },
+          },
+          tyT1,
+        ],
+      ];
+
+      return [
+        resultType,
+        nextUniqVar2,
+        [...newConstraints, ...constr1],
+      ];
     }
     case "TmIf": {
       // 1 - cond
@@ -202,18 +271,33 @@ function recon(
   }
 }
 
+/**
+ * @param tyX name of type to subsitute
+ * @param tyT "known type" of tyX / constraint on tyX
+ * @param tyS type to substitute inside of
+ */
 function substituteInTy(tyX: string, tyT: Type, tyS: Type) {
-  function f(tyS: Type): Type {
+  function helper(tyS: Type): Type {
     switch (tyS.tag) {
       case "TyBool":
       case "TyInt":
       case "TyStr":
         return tyS;
+      case "TyRecord": {
+        const substitutedFieldTypes: typeof tyS.fieldTypes = {};
+        for (const [fieldName, fieldType] of Object.entries(tyS.fieldTypes)) {
+          substitutedFieldTypes[fieldName] = {
+            info: fieldType.info,
+            type: helper(fieldType.type),
+          };
+        }
+        return { tag: "TyRecord", fieldTypes: substitutedFieldTypes };
+      }
       case "TyArrow":
         return {
           tag: "TyArrow",
-          paramTypes: tyS.paramTypes.map((p) => f(p)),
-          returnType: f(tyS.returnType),
+          paramTypes: tyS.paramTypes.map((p) => helper(p)),
+          returnType: helper(tyS.returnType),
         };
       case "TyId": {
         if (tyS.name === tyX) {
@@ -228,7 +312,7 @@ function substituteInTy(tyX: string, tyT: Type, tyS: Type) {
       }
     }
   }
-  return f(tyS);
+  return helper(tyS);
 }
 
 function applySubst(constraints: Constraints, tyT: TypeWithInfo) {
@@ -258,6 +342,14 @@ function occursIn(tyX: string, tyT: Type) {
       case "TyInt":
       case "TyStr":
         return false;
+      case "TyRecord": {
+        for (const [_, fieldType] of Object.entries(tyT.fieldTypes)) {
+          if (helper(fieldType.type)) {
+            return true;
+          }
+        }
+        return false;
+      }
       case "TyArrow": {
         return tyT.paramTypes.filter((p) => helper(p)).length > 0 ||
           helper(tyT.returnType);
@@ -274,9 +366,7 @@ function occursIn(tyX: string, tyT: Type) {
   return helper(tyT);
 }
 
-function unify(
-  constraints: Constraints,
-) {
+function unify(constraints: Constraints) {
   function helper(constraints: Constraints): Constraints {
     if (constraints.length === 0) {
       return [];
@@ -293,16 +383,16 @@ function unify(
         throw new TypeError(`circular constraints`, tyS.info); // TODO tyT.info or tyS.info?
       }
       return [
-        [{ info: tyT.info, type: { tag: "TyId", name: tyT.type.name } }, tyS],
         ...helper(substituteInConstr(tyT.type.name, tyS.type, restConstraints)),
+        [{ info: tyT.info, type: { tag: "TyId", name: tyT.type.name } }, tyS],
       ];
     } else if (tyS.type.tag === "TyId") {
       if (occursIn(tyS.type.name, tyT.type)) {
         throw new TypeError(`circular constraints`, tyT.info); // TODO tyT.info or tyS.info?
       }
       return [
-        [{ info: tyS.info, type: { tag: "TyId", name: tyS.type.name } }, tyT],
         ...helper(substituteInConstr(tyS.type.name, tyT.type, restConstraints)),
+        [{ info: tyS.info, type: { tag: "TyId", name: tyS.type.name } }, tyT],
       ];
     } else if (tyS.type.tag === tyT.type.tag) {
       switch (tyS.type.tag) {
@@ -310,6 +400,38 @@ function unify(
         case "TyInt":
         case "TyStr":
           return helper(restConstraints);
+        case "TyRecord": {
+          if (tyT.type.tag !== "TyRecord") throw new Error();
+          if (tyS.type.fieldTypes.length !== tyT.type.fieldTypes.length) {
+            throw new TypeError(
+              `Unsolvable constraints: expected ${tyS.type.fieldTypes.length} fields but got ${tyT.type.fieldTypes.length}`,
+              tyT.info,
+            );
+          }
+          const fieldConstraints: Constraints = [];
+          for (const [fieldName, _] of Object.entries(tyS.type.fieldTypes)) {
+            if (!(fieldName in tyT.type.fieldTypes)) {
+              console.log("hereez");
+              console.log(prettyPrint(tyS));
+              console.log(prettyPrint(tyT));
+              throw new TypeError(
+                `Unsolvable constraints: expected field ${fieldName}`,
+                tyT.info,
+              );
+            }
+            fieldConstraints.push([
+              {
+                info: tyS.type.fieldTypes[fieldName].info,
+                type: tyS.type.fieldTypes[fieldName].type,
+              },
+              {
+                info: tyT.type.fieldTypes[fieldName].info,
+                type: tyT.type.fieldTypes[fieldName].type,
+              },
+            ]);
+          }
+          return helper([...fieldConstraints, ...restConstraints]);
+        }
         case "TyArrow": {
           if (tyT.type.tag !== "TyArrow") throw new Error();
           if (tyS.type.paramTypes.length !== tyT.type.paramTypes.length) {

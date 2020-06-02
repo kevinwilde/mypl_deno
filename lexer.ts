@@ -6,6 +6,8 @@ type Token =
     token: (
       | { tag: "LPAREN" }
       | { tag: "RPAREN" }
+      | { tag: "LCURLY" }
+      | { tag: "RCURLY" }
       | { tag: "COLON" }
       | { tag: "ARROW" }
       | { tag: "LET" }
@@ -50,6 +52,10 @@ export function createLexer(s: string): Lexer {
       // Handle parens
       char += input[j];
       j++;
+    } else if (input[j] === "{" || input[j] === "}") {
+      // Handle curly braces
+      char += input[j];
+      j++;
     } else if (input[j] === ":") {
       // Handle colon
       char += input[j];
@@ -65,9 +71,10 @@ export function createLexer(s: string): Lexer {
       // chars which signal end of token:
       // - whitespace
       // - parens
+      // - curly braces
       // - colon
       // don't need arrow since it can only come after paren
-      while (j < input.length && !/(\s|\(|\)|\:)/.test(input[j])) {
+      while (j < input.length && !/(\s|\(|\)|\{|\}|\:)/.test(input[j])) {
         char += input[j];
         j++;
       }
@@ -82,6 +89,10 @@ export function createLexer(s: string): Lexer {
           return { tag: "LPAREN" };
         case ")":
           return { tag: "RPAREN" };
+        case "{":
+          return { tag: "LCURLY" };
+        case "}":
+          return { tag: "RCURLY" };
         case ":":
           return { tag: "COLON" };
         case "->":

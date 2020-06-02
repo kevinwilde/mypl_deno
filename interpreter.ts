@@ -1,6 +1,5 @@
-import { Term as ParserTerm, Value as ParserValue } from "./parser.ts";
+import { Term as ParserTerm } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
-import { SourceInfo } from "./lexer.ts";
 import { RuntimeError } from "./exceptions.ts";
 
 export function evaluate(ast: ParserTerm) {
@@ -8,25 +7,24 @@ export function evaluate(ast: ParserTerm) {
 }
 
 type Environment = { name: string; value: Value }[];
+
 export type Value =
-  | ParserValue
+  | { tag: "TmBool"; val: boolean }
+  | { tag: "TmInt"; val: number }
+  | { tag: "TmStr"; val: string }
+  | { tag: "TmRecord"; fields: Record<string, Value> }
   | { tag: "TmClosure"; params: string[]; body: Term; env: Environment }
   | {
     tag: "TmStdlibFun";
     impl: (...args: Value[]) => Value;
   };
-type Term = {
-  info: SourceInfo;
-  term: (Value | ParserTerm["term"]);
-};
+type Term = ParserTerm;
 
 function interpretInEnv(term: Term, env: Environment): Value {
   switch (term.term.tag) {
     case "TmBool":
     case "TmInt":
     case "TmStr":
-    case "TmClosure":
-    case "TmStdlibFun":
       return term.term;
     case "TmAbs":
       return {
@@ -37,6 +35,20 @@ function interpretInEnv(term: Term, env: Environment): Value {
       };
     case "TmVar":
       return lookupInEnv(term.term.name, env);
+    case "TmRecord": {
+      const reducedFields: Record<string, Value> = {};
+      for (const [fieldName, fieldTerm] of Object.entries(term.term.fields)) {
+        reducedFields[fieldName] = interpretInEnv(fieldTerm, env);
+      }
+      return { tag: "TmRecord", fields: reducedFields };
+    }
+    case "TmProj": {
+      const record = interpretInEnv(term.term.record, env);
+      if (record.tag !== "TmRecord") {
+        throw new Error("Error in typechecker");
+      }
+      return record.fields[term.term.fieldName];
+    }
     case "TmIf": {
       const condResult = interpretInEnv(term.term.cond, env);
       if (condResult.tag !== "TmBool") {

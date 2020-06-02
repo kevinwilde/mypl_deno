@@ -15,6 +15,12 @@ export function printType(t: ReturnType<typeof typeCheck>) {
         return "int";
       case "TyStr":
         return "str";
+      case "TyRecord":
+        return `{${
+          Object.keys(t.fieldTypes).sort().map((k) =>
+            `${k}:${printType(t.fieldTypes[k].type)}`
+          ).join(" ")
+        }}`;
       case "TyArrow":
         return `(-> (${(t.paramTypes.map((p) => helper(p))).join(" ")}) ${
           helper(t.returnType)

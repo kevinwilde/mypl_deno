@@ -1,16 +1,15 @@
 import { Lexer, SourceInfo } from "./lexer.ts";
-import { Type } from "./typechecker.ts";
+import { Type, TypeWithInfo } from "./typechecker.ts";
 import { ParseError, EOFError } from "./exceptions.ts";
-
-export type Value =
-  | { tag: "TmBool"; val: boolean }
-  | { tag: "TmInt"; val: number }
-  | { tag: "TmStr"; val: string };
 
 export type Term = {
   info: SourceInfo;
   term: (
-    | Value
+    | { tag: "TmBool"; val: boolean }
+    | { tag: "TmInt"; val: number }
+    | { tag: "TmStr"; val: string }
+    | { tag: "TmRecord"; fields: Record<string, Term> }
+    | { tag: "TmProj"; record: Term; fieldName: string } // Should be TmRecord and TmStr when well-formed
     | { tag: "TmVar"; name: string }
     | { tag: "TmIf"; cond: Term; then: Term; else: Term }
     | {
@@ -32,6 +31,7 @@ export function createAST(lexer: Lexer): Term {
 
     switch (cur.token.tag) {
       case "RPAREN":
+      case "RCURLY":
       case "COLON":
       case "ARROW":
       case "LET":
@@ -46,12 +46,40 @@ export function createAST(lexer: Lexer): Term {
         return { info: cur.info, term: { tag: "TmStr", val: cur.token.val } };
       case "IDEN":
         return { info: cur.info, term: { tag: "TmVar", name: cur.token.name } };
+      case "LCURLY": {
+        const fields: Record<string, Term> = {};
+        while (true) {
+          const next = lexer.nextToken();
+          if (!next) {
+            throw new EOFError();
+          } else if (next.token.tag === "RCURLY") {
+            return {
+              info: { startIdx: cur.info.startIdx, endIdx: next.info.endIdx },
+              term: { tag: "TmRecord", fields },
+            };
+          } else if (next.token.tag === "IDEN") {
+            const colon = lexer.nextToken();
+            if (colon === null) throw new EOFError();
+            if (colon.token.tag !== "COLON") {
+              throw new ParseError(
+                `Unexpected token: expected \`:\` but got ${colon.token.tag}`,
+                colon.info,
+              );
+            }
+            fields[next.token.name] = createAST(lexer);
+          } else {
+            throw new ParseError("Unexpected token", next.info);
+          }
+        }
+      }
 
       case "LPAREN": {
         let nextToken = lexer.peek();
         if (!nextToken) throw new EOFError();
         switch (nextToken.token.tag) {
           case "RPAREN":
+          case "LCURLY":
+          case "RCURLY":
           case "COLON":
           case "ARROW":
           case "BOOL":
@@ -91,7 +119,10 @@ export function createAST(lexer: Lexer): Term {
                 }
                 params.push({ name: next.token.name, typeAnn });
               } else {
-                throw new ParseError("Unexpected token", next.info);
+                throw new ParseError(
+                  `Unexpected token: ${next.token.tag}`,
+                  next.info,
+                );
               }
             }
             const body = createAST(lexer);
@@ -174,6 +205,46 @@ export function createAST(lexer: Lexer): Term {
           }
           case "LPAREN":
           case "IDEN": {
+            // Special cases for IDEN -- built in operations
+            // TODO clean up this in relation to stdlib
+            if (nextToken.token.tag === "IDEN") {
+              if (nextToken.token.name === "get-field") {
+                const getField_ = lexer.nextToken();
+                const record = createAST(lexer);
+                const fieldName = lexer.nextToken();
+                if (fieldName === null) {
+                  throw new EOFError();
+                }
+                // Field name must be string literal for records
+                if (fieldName.token.tag !== "STR") {
+                  throw new ParseError(
+                    `Unexpected token: expected field name but got ${fieldName.token.tag}`,
+                    fieldName.info,
+                  );
+                }
+                const closeParen = lexer.nextToken();
+                if (closeParen === null) {
+                  throw new EOFError();
+                }
+                if (closeParen.token.tag !== "RPAREN") {
+                  throw new ParseError(
+                    `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
+                    closeParen.info,
+                  );
+                }
+                return {
+                  info: {
+                    startIdx: cur.info.startIdx,
+                    endIdx: closeParen.info.endIdx,
+                  },
+                  term: {
+                    tag: "TmProj",
+                    record,
+                    fieldName: fieldName.token.val,
+                  },
+                };
+              }
+            }
             const func = createAST(lexer);
             const args = [];
             while (true) {
@@ -221,6 +292,7 @@ function parseTypeAnn(lexer: Lexer): Type {
   }
   switch (cur.token.tag) {
     case "RPAREN":
+    case "RCURLY":
     case "COLON":
     case "ARROW":
     case "LET":
@@ -240,6 +312,36 @@ function parseTypeAnn(lexer: Lexer): Type {
           return { tag: "TyStr" };
         default:
           throw new ParseError(`Unknown type: ${cur.token.name}`, cur.info);
+      }
+    }
+    case "LCURLY": {
+      const fieldTypes: Record<string, TypeWithInfo> = {};
+      while (true) {
+        const next = lexer.nextToken();
+        if (!next) {
+          throw new EOFError();
+        } else if (next.token.tag === "RCURLY") {
+          return { tag: "TyRecord", fieldTypes };
+        } else if (next.token.tag === "IDEN") {
+          const fieldName = next.token.name;
+          const colon = lexer.nextToken();
+          if (colon === null) {
+            throw new EOFError();
+          }
+          if (colon.token.tag !== "COLON") {
+            throw new ParseError(
+              `Unexpected token: expected \`:\` but got ${colon.token.tag}`,
+              colon.info,
+            );
+          }
+          const fieldType = parseTypeAnn(lexer);
+          fieldTypes[fieldName] = { type: fieldType, info: next.info };
+        } else {
+          throw new ParseError(
+            `Unexpected token: ${next.token.tag}`,
+            next.info,
+          );
+        }
       }
     }
     case "LPAREN": {
