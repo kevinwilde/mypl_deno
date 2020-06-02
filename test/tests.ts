@@ -603,36 +603,33 @@ Deno.test("recursive function that takes int returns str", () => {
   assertResult(program, { tag: "TmStr", val: "aab" });
 });
 
-// Deno.test("naive fibonacci", () => {
-//   const fix = `
-//     (lambda (f)
-//       ((lambda (x)
-//           (f (lambda (y) ((x x) y))))
-//         (lambda (x)
-//           (f (lambda (y) ((x x) y))))))
-//   `;
-//   const g = `
-//     (lambda (fib)
-//       (lambda (n)
-//         (if (= n 0)
-//           1
-//           (if (= n 1)
-//             1
-//             (+ (fib (- n 1)) (fib (- n 2)))))))
-//   `;
-//   let program = `(let fibonacci (${fix} ${g}) (fibonacci 0))`;
-//   assertResult(program, { tag: "TmInt", val: 1 });
-//   program = `(let fibonacci (${fix} ${g}) (fibonacci 1))`;
-//   assertResult(program, { tag: "TmInt", val: 1 });
-//   program = `(let fibonacci (${fix} ${g}) (fibonacci 2))`;
-//   assertResult(program, { tag: "TmInt", val: 2 });
-//   program = `(let fibonacci (${fix} ${g}) (fibonacci 3))`;
-//   assertResult(program, { tag: "TmInt", val: 3 });
-//   program = `(let fibonacci (${fix} ${g}) (fibonacci 4))`;
-//   assertResult(program, { tag: "TmInt", val: 5 });
-//   program = `(let fibonacci (${fix} ${g}) (fibonacci 5))`;
-//   assertResult(program, { tag: "TmInt", val: 8 });
-// });
+Deno.test("naive fibonacci", () => {
+  const g = `
+    (lambda (fib)
+      (lambda (n)
+        (if (= n 0)
+          1
+          (if (= n 1)
+            1
+            (+ (fib (- n 1)) (fib (- n 2)))))))
+  `;
+  let program = `(let fibonacci (fix ${g}) (fibonacci 0))`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = `(let fibonacci (fix ${g}) (fibonacci 1))`;
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = `(let fibonacci (fix ${g}) (fibonacci 2))`;
+  assertResult(program, { tag: "TmInt", val: 2 });
+  program = `(let fibonacci (fix ${g}) (fibonacci 3))`;
+  assertResult(program, { tag: "TmInt", val: 3 });
+  program = `(let fibonacci (fix ${g}) (fibonacci 4))`;
+  assertResult(program, { tag: "TmInt", val: 5 });
+  program = `(let fibonacci (fix ${g}) (fibonacci 5))`;
+  assertResult(program, { tag: "TmInt", val: 8 });
+  program = `(let fibonacci (fix ${g}) (+ (fibonacci 5) (fibonacci 6)))`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 21 });
+});
 
 Deno.test("identity fn", () => {
   let program = "(lambda (x) x)";
