@@ -1,1 +1,1 @@
-I have no idea what I'm doing. Do not look at the code in this repo
+Implementing a programming language. Heavily aided by [_Types and Programming Languages_ by Benjamin C. Pierce](https://books.google.com/books/about/Types_and_Programming_Languages.html?id=ti6zoAC9Ph8C).
