@@ -635,27 +635,64 @@ Deno.test("naive fibonacci", () => {
     (lambda (fib)
       (lambda (n)
         (if (= n 0)
-          1
+          0
           (if (= n 1)
             1
             (+ (fib (- n 1)) (fib (- n 2)))))))
   `;
   let program = `(let fibonacci (fix ${g}) (fibonacci 0))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, { tag: "TmInt", val: 0 });
   program = `(let fibonacci (fix ${g}) (fibonacci 1))`;
   assertResult(program, { tag: "TmInt", val: 1 });
   program = `(let fibonacci (fix ${g}) (fibonacci 2))`;
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, { tag: "TmInt", val: 1 });
   program = `(let fibonacci (fix ${g}) (fibonacci 3))`;
-  assertResult(program, { tag: "TmInt", val: 3 });
+  assertResult(program, { tag: "TmInt", val: 2 });
   program = `(let fibonacci (fix ${g}) (fibonacci 4))`;
-  assertResult(program, { tag: "TmInt", val: 5 });
+  assertResult(program, { tag: "TmInt", val: 3 });
   program = `(let fibonacci (fix ${g}) (fibonacci 5))`;
-  assertResult(program, { tag: "TmInt", val: 8 });
+  assertResult(program, { tag: "TmInt", val: 5 });
+  // Naive algorithm too slow
+  // program = `(let fibonacci (fix ${g}) (fibonacci 50))`;
+  // assertResult(program, { tag: "TmInt", val: 12586269025 });
   program = `(let fibonacci (fix ${g}) (+ (fibonacci 5) (fibonacci 6)))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 21 });
+  assertResult(program, { tag: "TmInt", val: 13 });
+});
+
+Deno.test("smart fibonacci", () => {
+  let fib = (arg: number) => (`
+  (let smart-fib
+    (fix
+      (lambda (fib)
+        (lambda (n)
+          (let helper
+            (fix
+              (lambda (helper)
+                (lambda (i)
+                  (lambda (prev1 prev2)
+                    (if (= i n)
+                        prev2
+                        ((helper (+ i 1)) (+ prev1 prev2) prev1))))))
+            ((helper 0) 1 0)))))
+    (smart-fib ${arg}))
+  `);
+  let program = fib(0);
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 0 });
+  program = fib(1);
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = fib(2);
+  assertResult(program, { tag: "TmInt", val: 1 });
+  program = fib(3);
+  assertResult(program, { tag: "TmInt", val: 2 });
+  program = fib(4);
+  assertResult(program, { tag: "TmInt", val: 3 });
+  program = fib(5);
+  assertResult(program, { tag: "TmInt", val: 5 });
+  program = fib(50);
+  assertResult(program, { tag: "TmInt", val: 12586269025 });
 });
 
 Deno.test("identity fn", () => {
