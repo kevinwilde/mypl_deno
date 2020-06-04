@@ -54,7 +54,8 @@ export function createAST(lexer: Lexer): TermWithInfo {
       case "STR":
         return { info: cur.info, term: { tag: "TmStr", val: cur.token.val } };
       case "IDEN": {
-        // TODO ugh need to sort out built-ins vs globals vs standard lib
+        // Special cases for IDEN -- things that are their own kind of term,
+        // not TmVar
         if (cur.token.name === "empty") {
           return { info: cur.info, term: { tag: "TmEmpty" } };
         }
@@ -219,31 +220,11 @@ export function createAST(lexer: Lexer): TermWithInfo {
           }
           case "LPAREN":
           case "IDEN": {
-            // Special cases for IDEN -- built in operations
+            // Special cases for IDEN -- things that are their own kind of term,
+            // not TmApp
             // TODO clean up this in relation to stdlib
             if (nextToken.token.tag === "IDEN") {
-              if (nextToken.token.name === "cons") {
-                const cons_ = lexer.nextToken();
-                const car = createAST(lexer);
-                const cdr = createAST(lexer);
-                const closeParen = lexer.nextToken();
-                if (closeParen === null) {
-                  throw new EOFError();
-                }
-                if (closeParen.token.tag !== "RPAREN") {
-                  throw new ParseError(
-                    `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
-                    closeParen.info,
-                  );
-                }
-                return {
-                  info: {
-                    startIdx: cur.info.startIdx,
-                    endIdx: closeParen.info.endIdx,
-                  },
-                  term: { tag: "TmCons", car, cdr },
-                };
-              } else if (nextToken.token.name === "get-field") {
+              if (nextToken.token.name === "get-field") {
                 const getField_ = lexer.nextToken();
                 const record = createAST(lexer);
                 const fieldName = lexer.nextToken();

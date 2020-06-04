@@ -91,6 +91,19 @@ const STD_LIB: Record<string, () => StdLibFun> = {
       y: DiscriminateUnion<Value, "tag", "TmStr">,
     ) => ({ tag: "TmStr", val: x.val + y.val }),
   }),
+  "cons": () => {
+    const elementType = createTypeWithInfo({ tag: "TyId", name: genUniq() });
+    const listType = createTypeWithInfo({ tag: "TyList", elementType });
+    return {
+      tag: "TmStdlibFun",
+      type: {
+        tag: "TyArrow",
+        paramTypes: [elementType, listType],
+        returnType: listType,
+      },
+      impl: (car: Value, cdr: Value) => ({ tag: "TmCons", car, cdr }),
+    };
+  },
   "empty?": () => ({
     tag: "TmStdlibFun",
     type: {
