@@ -1,7 +1,7 @@
 import { TermWithInfo } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
 import { RuntimeError } from "./exceptions.ts";
-import { prettyPrint } from "./utils.ts";
+import { DiscriminateUnion } from "./utils.ts";
 
 export function evaluate(ast: TermWithInfo) {
   return interpretInEnv(ast, []);
@@ -75,9 +75,35 @@ function interpretInEnv(term: TermWithInfo, env: Environment): Value {
       );
     }
     case "TmLet": {
-      const newEnv = [
-        { name: term.term.name, value: interpretInEnv(term.term.val, env) },
-      ].concat(env);
+      let value;
+      if (term.term.val.term.tag === "TmAbs") {
+        // Special case to enable recursion
+        const func = term.term.val.term;
+        const closureEnvEntry: DiscriminateUnion<
+          Value,
+          "tag",
+          "TmClosure"
+        > = {
+          tag: "TmClosure",
+          params: func.params.map((p) => p.name),
+          body: func.body,
+          env: null as any,
+        };
+        // Add an entry to the Environment for this closure assigned to the name
+        // of the let term we are evaluationg
+        const closureEnv = [
+          { name: term.term.name, value: closureEnvEntry },
+          ...env,
+        ];
+        // Point the env for the closure back at the env we just created,
+        // forming a circular reference to allow recursion
+        closureEnvEntry.env = closureEnv;
+        // Now interpret the val of the let term (the function we're creating)
+        value = interpretInEnv(term.term.val, closureEnv);
+      } else {
+        value = interpretInEnv(term.term.val, env);
+      }
+      const newEnv = [{ name: term.term.name, value }, ...env];
       return interpretInEnv(term.term.body, newEnv);
     }
     case "TmApp": {

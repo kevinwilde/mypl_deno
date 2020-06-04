@@ -1,8 +1,6 @@
 import { Value } from "./interpreter.ts";
 import { TypeWithInfo } from "./typechecker.ts";
-
-type DiscriminateUnion<T, K extends keyof T, V extends T[K]> = T extends
-  Record<K, V> ? T : never;
+import { DiscriminateUnion, genUniq } from "./utils.ts";
 
 type StdLibFun = {
   tag: "TmStdlibFun";
@@ -101,7 +99,7 @@ const STD_LIB: Record<string, () => StdLibFun> = {
         createTypeWithInfo(
           {
             tag: "TyList",
-            elementType: createTypeWithInfo({ tag: "TyId", name: Symbol() }),
+            elementType: createTypeWithInfo({ tag: "TyId", name: genUniq() }),
           },
         ),
       ],
@@ -114,7 +112,7 @@ const STD_LIB: Record<string, () => StdLibFun> = {
     ) => ({ tag: "TmBool", val: lst.tag === "TmEmpty" }),
   }),
   "car": () => {
-    const elementType = createTypeWithInfo({ tag: "TyId", name: Symbol() });
+    const elementType = createTypeWithInfo({ tag: "TyId", name: genUniq() });
     return {
       tag: "TmStdlibFun",
       type: {
@@ -133,7 +131,7 @@ const STD_LIB: Record<string, () => StdLibFun> = {
     };
   },
   "cdr": () => {
-    const elementType = createTypeWithInfo({ tag: "TyId", name: Symbol() });
+    const elementType = createTypeWithInfo({ tag: "TyId", name: genUniq() });
     const listType = createTypeWithInfo({ tag: "TyList", elementType });
     return {
       tag: "TmStdlibFun",
@@ -149,61 +147,6 @@ const STD_LIB: Record<string, () => StdLibFun> = {
       ) => {
         if (lst.tag === "TmEmpty") throw new Error("Called cdr on empty list");
         return lst.cdr;
-      },
-    };
-  },
-  "fix": () => {
-    const paramTypeSym = Symbol();
-    const returnTypeSym = Symbol();
-    return {
-      // Only works for recursive functions that take 1 argument
-      tag: "TmStdlibFun",
-      type: {
-        tag: "TyArrow",
-        paramTypes: [
-          createTypeWithInfo({
-            "tag": "TyArrow",
-            "paramTypes": [
-              createTypeWithInfo({
-                "tag": "TyArrow",
-                "paramTypes": [
-                  createTypeWithInfo({ "tag": "TyId", name: paramTypeSym }),
-                ],
-                "returnType": createTypeWithInfo(
-                  { "tag": "TyId", name: returnTypeSym },
-                ),
-              }),
-            ],
-            "returnType": createTypeWithInfo({
-              "tag": "TyArrow",
-              "paramTypes": [
-                createTypeWithInfo({ "tag": "TyId", name: paramTypeSym }),
-              ],
-              "returnType": createTypeWithInfo(
-                { "tag": "TyId", name: returnTypeSym },
-              ),
-            }),
-          }),
-        ],
-        returnType: createTypeWithInfo({
-          tag: "TyArrow",
-          paramTypes: [createTypeWithInfo({ tag: "TyId", name: paramTypeSym })],
-          returnType: createTypeWithInfo({ tag: "TyId", name: returnTypeSym }),
-        }),
-      },
-      impl: (f: DiscriminateUnion<Value, "tag", "TmClosure">) => {
-        if (f.body.term.tag !== "TmAbs") {
-          throw new Error();
-        }
-        const result: DiscriminateUnion<Value, "tag", "TmClosure"> = {
-          tag: "TmClosure",
-          params: [f.body.term.params[0].name],
-          body: f.body.term.body,
-          env: null as any,
-        };
-        const newEnv = [{ name: f.params[0], value: result }, ...f.env];
-        result.env = newEnv;
-        return result;
       },
     };
   },

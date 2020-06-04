@@ -1,8 +1,19 @@
 import { typeCheck } from "./typechecker.ts";
 
+export type DiscriminateUnion<T, K extends keyof T, V extends T[K]> = T extends
+  Record<K, V> ? T : never;
+
 export function prettyPrint(obj: any) {
   return JSON.stringify(obj, null, 2);
 }
+
+export const genUniq = Symbol;
+//// For debugging...easier to console log than symbols
+// let i = 0;
+// export const genUniq = () => {
+//   i++;
+//   return `?X_${i}` as any;
+// };
 
 export function printType(t: ReturnType<typeof typeCheck>) {
   // produces stream of identifiers like
@@ -26,9 +37,7 @@ export function printType(t: ReturnType<typeof typeCheck>) {
 
   const symbolToPrettyType: Map<symbol, string> = new Map();
 
-  function helper(
-    t: ReturnType<typeof typeCheck>,
-  ): string {
+  function helper(t: ReturnType<typeof typeCheck>): string {
     switch (t.tag) {
       case "TyBool":
         return "bool";
@@ -37,11 +46,11 @@ export function printType(t: ReturnType<typeof typeCheck>) {
       case "TyStr":
         return "str";
       case "TyList":
-        return `(Listof ${printType(t.elementType.type)})`;
+        return `(Listof ${helper(t.elementType.type)})`;
       case "TyRecord":
         return `{${
           Object.keys(t.fieldTypes).sort().map((k) =>
-            `${k}:${printType(t.fieldTypes[k].type)}`
+            `${k}:${helper(t.fieldTypes[k].type)}`
           ).join(" ")
         }}`;
       case "TyArrow":
@@ -62,16 +71,4 @@ export function printType(t: ReturnType<typeof typeCheck>) {
   }
 
   return helper(t);
-  // const uglyResult = helper(t);
-  // const regex = new RegExp("(\%.+?\%)");
-  // let result = uglyResult;
-  // while (true) {
-  //   const matches = regex.exec(result);
-  //   if (matches === null) {
-  //     break;
-  //   }
-  //   const match = matches[0];
-  //   result = result.split(match).join(nextFree());
-  // }
-  // return result;
 }

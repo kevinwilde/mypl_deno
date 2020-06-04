@@ -556,127 +556,114 @@ Deno.test("[TypeError] first class functions (without type ann)", () => {
   expectTypeError(program);
 });
 
-Deno.test("fix add1", () => {
-  const g = `
-    (lambda (add1)
-      (lambda (n)
-        (+ 1 n)))
-  `;
-  let program = `(let add1 (fix ${g}) (add1 0))`;
-  assertResult(program, { tag: "TmInt", val: 1 });
-  program = `(let add1 (fix ${g}) (add1 1))`;
-  assertResult(program, { tag: "TmInt", val: 2 });
-});
-
 Deno.test("naive factorial (with type ann)", () => {
   const g = `
-    (lambda (fct: (-> (int) int))
-      (lambda (n: int)
-        (if (= n 0)
+    (lambda (n: int)
+      (if (= n 0)
           1
-          (* n (fct (- n 1))))))
+          (* n (factorial (- n 1)))))
   `;
-  let program = `(let factorial (fix ${g}) (factorial 0))`;
+  let program = `(let factorial ${g} factorial)`;
+  assertType(program, `(-> (int) int)`);
+  program = `(let factorial ${g} (factorial 0))`;
   assertResult(program, { tag: "TmInt", val: 1 });
-  program = `(let factorial (fix ${g}) (factorial 1))`;
+  program = `(let factorial ${g} (factorial 1))`;
   assertResult(program, { tag: "TmInt", val: 1 });
-  program = `(let factorial (fix ${g}) (factorial 2))`;
+  program = `(let factorial ${g} (factorial 2))`;
   assertResult(program, { tag: "TmInt", val: 2 });
-  program = `(let factorial (fix ${g}) (factorial 3))`;
+  program = `(let factorial ${g} (factorial 3))`;
   assertResult(program, { tag: "TmInt", val: 6 });
-  program = `(let factorial (fix ${g}) (factorial 4))`;
+  program = `(let factorial ${g} (factorial 4))`;
   assertResult(program, { tag: "TmInt", val: 24 });
 });
 
 Deno.test("naive factorial (without type ann)", () => {
   const g = `
-    (lambda (fct)
-      (lambda (n)
-        (if (= n 0)
+    (lambda (n)
+      (if (= n 0)
           1
-          (* n (fct (- n 1))))))
+          (* n (factorial (- n 1)))))
   `;
-  let program = `(let factorial (fix ${g}) (factorial 0))`;
+  let program = `(let factorial ${g} factorial)`;
+  assertType(program, `(-> (int) int)`);
+  program = `(let factorial ${g} (factorial 0))`;
   assertType(program, "int");
   assertResult(program, { tag: "TmInt", val: 1 });
-  program = `(let factorial (fix ${g}) (factorial 1))`;
+  program = `(let factorial ${g} (factorial 1))`;
   assertResult(program, { tag: "TmInt", val: 1 });
-  program = `(let factorial (fix ${g}) (factorial 2))`;
+  program = `(let factorial ${g} (factorial 2))`;
   assertResult(program, { tag: "TmInt", val: 2 });
-  program = `(let factorial (fix ${g}) (factorial 3))`;
+  program = `(let factorial ${g} (factorial 3))`;
   assertResult(program, { tag: "TmInt", val: 6 });
-  program = `(let factorial (fix ${g}) (factorial 4))`;
+  program = `(let factorial ${g} (factorial 4))`;
   assertResult(program, { tag: "TmInt", val: 24 });
-  program = `(let factorial (fix ${g}) (+ (factorial 4) (factorial 3)))`;
+  program = `(let factorial ${g} (+ (factorial 4) (factorial 3)))`;
   assertResult(program, { tag: "TmInt", val: 30 });
 });
 
 Deno.test("recursive function that takes int returns str", () => {
   const g = `
-    (lambda (append-n : (-> (int) str))
-      (lambda (n: int)
-        (if (= n 0)
+    (lambda (n: int)
+      (if (= n 0)
           ""
-          (string-concat "a" (append-n (- n 1))))))
+          (string-concat "a" (a-n-times (- n 1)))))
   `;
-  let program = `(let myFunc (fix ${g}) (myFunc 0))`;
+  let program = `(let a-n-times ${g} a-n-times)`;
+  assertType(program, "(-> (int) str)");
+  program = `(let a-n-times ${g} (a-n-times 0))`;
   assertType(program, "str");
   assertResult(program, { tag: "TmStr", val: "" });
-  program = `(let myFunc (fix ${g}) (myFunc 1))`;
+  program = `(let a-n-times ${g} (a-n-times 1))`;
   assertResult(program, { tag: "TmStr", val: "a" });
-  program = `(let myFunc (fix ${g}) (myFunc 2))`;
+  program = `(let a-n-times ${g} (a-n-times 2))`;
   assertResult(program, { tag: "TmStr", val: "aa" });
-  program = `(string-concat (let myFunc (fix ${g}) (myFunc 2)) "b")`;
+  program = `(string-concat (let a-n-times ${g} (a-n-times 2)) "b")`;
   assertResult(program, { tag: "TmStr", val: "aab" });
 });
 
 Deno.test("naive fibonacci", () => {
   const g = `
-    (lambda (fib)
-      (lambda (n)
-        (if (= n 0)
+    (lambda (n)
+      (if (= n 0)
           0
           (if (= n 1)
             1
-            (+ (fib (- n 1)) (fib (- n 2)))))))
+            (+ (fibonacci (- n 1)) (fibonacci (- n 2))))))
   `;
-  let program = `(let fibonacci (fix ${g}) (fibonacci 0))`;
+  let program = `(let fibonacci ${g} fibonacci)`;
+  assertType(program, "(-> (int) int)");
+  program = `(let fibonacci ${g} (fibonacci 0))`;
   assertType(program, "int");
   assertResult(program, { tag: "TmInt", val: 0 });
-  program = `(let fibonacci (fix ${g}) (fibonacci 1))`;
+  program = `(let fibonacci ${g} (fibonacci 1))`;
   assertResult(program, { tag: "TmInt", val: 1 });
-  program = `(let fibonacci (fix ${g}) (fibonacci 2))`;
+  program = `(let fibonacci ${g} (fibonacci 2))`;
   assertResult(program, { tag: "TmInt", val: 1 });
-  program = `(let fibonacci (fix ${g}) (fibonacci 3))`;
+  program = `(let fibonacci ${g} (fibonacci 3))`;
   assertResult(program, { tag: "TmInt", val: 2 });
-  program = `(let fibonacci (fix ${g}) (fibonacci 4))`;
+  program = `(let fibonacci ${g} (fibonacci 4))`;
   assertResult(program, { tag: "TmInt", val: 3 });
-  program = `(let fibonacci (fix ${g}) (fibonacci 5))`;
+  program = `(let fibonacci ${g} (fibonacci 5))`;
   assertResult(program, { tag: "TmInt", val: 5 });
   // Naive algorithm too slow
-  // program = `(let fibonacci (fix ${g}) (fibonacci 50))`;
+  // program = `(let fibonacci ${g} (fibonacci 50))`;
   // assertResult(program, { tag: "TmInt", val: 12586269025 });
-  program = `(let fibonacci (fix ${g}) (+ (fibonacci 5) (fibonacci 6)))`;
+  program = `(let fibonacci ${g} (+ (fibonacci 5) (fibonacci 6)))`;
   assertType(program, "int");
   assertResult(program, { tag: "TmInt", val: 13 });
 });
 
 Deno.test("smart fibonacci", () => {
   let fib = (arg: number) => (`
-  (let smart-fib
-    (fix
-      (lambda (fib)
-        (lambda (n)
+    (let smart-fib
+      (lambda (n)
           (let helper
-            (fix
-              (lambda (helper)
-                (lambda (i)
-                  (lambda (prev1 prev2)
+            (lambda (i prev1 prev2)
                     (if (= i n)
                         prev2
-                        ((helper (+ i 1)) (+ prev1 prev2) prev1))))))
-            ((helper 0) 1 0)))))
-    (smart-fib ${arg}))
+                        (helper (+ i 1) (+ prev1 prev2) prev1)))
+            (helper 0 1 0)))
+      (smart-fib ${arg}))
   `);
   let program = fib(0);
   assertType(program, "int");
@@ -693,6 +680,8 @@ Deno.test("smart fibonacci", () => {
   assertResult(program, { tag: "TmInt", val: 5 });
   program = fib(50);
   assertResult(program, { tag: "TmInt", val: 12586269025 });
+  program = fib(`"hi"` as any);
+  expectTypeError(program);
 });
 
 Deno.test("identity fn", () => {
@@ -898,20 +887,36 @@ Deno.test("[TypeError] calling a function that takes a list (without type ann)",
 });
 
 Deno.test("recursion with lists (without type ann)", () => {
-  // Ugly because fix only works for 1-argument functions right now
-  // Relying on function f being defined in scope
-  let g = `
-    (lambda (map)
-      (lambda (lst)
+  let g = (call: string) => (`
+    (let map
+      (lambda (f lst)
         (if (empty? lst)
-          lst
-          (cons (f (car lst)) (map (cdr lst))))))
-  `;
-  let program = `
-    (let f (lambda (n) (+ n 41))
-        (let map (fix ${g})
-          (map (cons 1 (cons 2 empty)))))
-  `;
+          empty
+          (cons (f (car lst)) (map f (cdr lst)))))
+      ${call})
+  `);
+  let program = g(`map`);
+  assertType(program, "(-> ((-> ('a) 'b) (Listof 'a)) (Listof 'b))");
+  program = g(`
+  (let result (map (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))
+      (if (empty? result) #f (car result)))
+  `);
+  assertType(program, "bool");
+  program = g(`(map (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))`);
+  assertType(program, "(Listof bool)");
+  assertResult(
+    program,
+    {
+      tag: "TmCons",
+      car: { tag: "TmBool", val: false },
+      cdr: {
+        tag: "TmCons",
+        car: { tag: "TmBool", val: true },
+        cdr: { tag: "TmEmpty" },
+      },
+    },
+  );
+  program = g(`(map (lambda (n) (+ n 41)) (cons 1 (cons 2 empty)))`);
   assertType(program, "(Listof int)");
   assertResult(
     program,
@@ -925,20 +930,20 @@ Deno.test("recursion with lists (without type ann)", () => {
       },
     },
   );
-  g = `
-  (lambda (filter)
-    (lambda (lst)
-      (if (empty? lst)
-        lst
-        (if (f (car lst))
-            (cons (car lst) (filter (cdr lst)))
-            (filter (cdr lst))))))
-`;
-  program = `
-  (let f (lambda (n) (= n 2))
-      (let filter (fix ${g})
-        (filter (cons 1 (cons 2 empty)))))
-`;
+
+  g = (call: string) => (`
+    (let filter
+      (lambda (f lst)
+        (if (empty? lst)
+          empty
+          (if (f (car lst))
+              (cons (car lst) (filter f (cdr lst)))
+              (filter f (cdr lst)))))
+      ${call})
+  `);
+  program = g(`filter`);
+  assertType(program, "(-> ((-> ('a) bool) (Listof 'a)) (Listof 'a))");
+  program = g(`(filter (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))`);
   assertType(program, "(Listof int)");
   assertResult(
     program,
@@ -948,25 +953,21 @@ Deno.test("recursion with lists (without type ann)", () => {
       cdr: { tag: "TmEmpty" },
     },
   );
-  g = `
-  (lambda (any)
-    (lambda (lst)
-      (if (empty? lst)
-        #f
-        (if (f (car lst)) #t (any (cdr lst))))))
-`;
-  program = `
-  (let f (lambda (n) (= n 2))
-      (let any (fix ${g})
-        (any (cons 1 (cons 2 empty)))))
-`;
+
+  g = (call: string) => (`
+    (let any
+      (lambda (f lst)
+        (if (empty? lst)
+          #f
+          (if (f (car lst)) #t (any f (cdr lst)))))
+      ${call})
+  `);
+  program = g(`any`);
+  assertType(program, "(-> ((-> ('a) bool) (Listof 'a)) bool)");
+  program = g(`(any (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))`);
   assertType(program, "bool");
   assertResult(program, { tag: "TmBool", val: true });
-  program = `
-  (let f (lambda (n) (= n 3))
-      (let any (fix ${g})
-        (any (cons 1 (cons 2 empty)))))
-`;
+  program = g(`(any (lambda (n) (= n 3)) (cons 1 (cons 2 empty)))`);
   assertType(program, "bool");
   assertResult(program, { tag: "TmBool", val: false });
 });

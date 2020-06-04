@@ -2,7 +2,7 @@ import { TermWithInfo } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
 import { TypeError } from "./exceptions.ts";
 import { SourceInfo } from "./lexer.ts";
-import { prettyPrint } from "./utils.ts";
+import { genUniq, prettyPrint } from "./utils.ts";
 
 type Type =
   | { tag: "TyBool" }
@@ -73,7 +73,7 @@ function recon(
             tag: "TyList",
             elementType: {
               info: term.info,
-              type: { tag: "TyId", name: Symbol() },
+              type: { tag: "TyId", name: genUniq() },
             },
           },
         },
@@ -139,7 +139,7 @@ function recon(
       } else {
         resultType = {
           info: term.term.record.info, // TODO not very granular info
-          type: { tag: "TyId", name: Symbol() },
+          type: { tag: "TyId", name: genUniq() },
         };
       }
 
@@ -189,8 +189,18 @@ function recon(
     case "TmLet": {
       // 1 - value
       // 2 - body
+      const unknownTypeForRecursion: Type = { tag: "TyId", name: genUniq() };
       const [tyT1, constr1] = recon(
-        ctx,
+        [
+          { // Allows recursion by saying this name is in context, with type unknown as of now
+            name: term.term.name,
+            type: {
+              info: term.info,
+              type: unknownTypeForRecursion,
+            },
+          },
+          ...ctx,
+        ],
         term.term.val,
       );
 
@@ -201,7 +211,13 @@ function recon(
 
       return [
         tyT2,
-        [...constr1, ...constr2], // TODO ?
+        [
+          // Constraint that the unknown type we referenced above, matches the
+          // type determined for the value of the let expression
+          [{ info: term.term.val.info, type: unknownTypeForRecursion }, tyT1],
+          ...constr1,
+          ...constr2,
+        ], // TODO ?
       ];
     }
     case "TmAbs": {
@@ -213,7 +229,7 @@ function recon(
           {
             name: p.name,
             type: (p.typeAnn ||
-              { info: term.info, type: { tag: "TyId", name: Symbol() } }),
+              { info: term.info, type: { tag: "TyId", name: genUniq() } }),
           },
         );
       }
@@ -250,7 +266,7 @@ function recon(
         argConstraints.push(...constr2);
       }
 
-      const tyIdSym = Symbol();
+      const tyIdSym = genUniq();
       const newConstraint: Constraints[0] = [
         tyT1,
         {
