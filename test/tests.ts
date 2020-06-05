@@ -1120,3 +1120,14 @@ Deno.test("[TypeError] calling a function that takes a record (without type ann)
   let program = `((lambda (x) (get-field x "a"))  {c:7})`;
   expectTypeError(program);
 });
+
+Deno.test("record with field of list of records", () => {
+  let program = `(car (cons {c:"hi" d:#f} empty))`;
+  assertType(program, `{c:str d:bool}`);
+  program = `(get-field {c:"hi" d:#f} "d")`;
+  assertType(program, `bool`);
+  //// TODO this test fails as described in comment of TmProj case of recon
+  //// function in typechecker
+  // program = `(get-field (car (cons {c:"hi" d:#f} empty)) "d")`;
+  // assertType(program, `bool`);
+});

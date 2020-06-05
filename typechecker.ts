@@ -137,6 +137,8 @@ function recon(
       ) {
         resultType = tyT1.type.fieldTypes[term.term.fieldName];
       } else {
+        // TODO this is broken and in general a hard problem to solve for the
+        // exact reasons described in the solution to Pierce 22.5.6
         resultType = {
           info: term.term.record.info, // TODO not very granular info
           type: { tag: "TyId", name: genUniq() },
@@ -447,12 +449,6 @@ function unify(constraints: Constraints) {
         }
         case "TyRecord": {
           if (tyT.type.tag !== "TyRecord") throw new Error();
-          if (tyS.type.fieldTypes.length !== tyT.type.fieldTypes.length) {
-            throw new TypeError(
-              `Unsolvable constraints: expected ${tyS.type.fieldTypes.length} fields but got ${tyT.type.fieldTypes.length}`,
-              tyT.info,
-            );
-          }
           const fieldConstraints: Constraints = [];
           for (const [fieldName, _] of Object.entries(tyS.type.fieldTypes)) {
             if (!(fieldName in tyT.type.fieldTypes)) {
