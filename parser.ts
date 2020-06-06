@@ -339,7 +339,10 @@ function parseTypeAnn(lexer: Lexer): TypeWithInfo {
         } else if (next.token.tag === "RCURLY") {
           return {
             info: { startIdx: cur.info.startIdx, endIdx: next.info.endIdx },
-            type: { tag: "TyRecord", fieldTypes },
+            type: {
+              tag: "TyRecord",
+              rowExp: { name: "emptyrow", fieldTypes },
+            },
           };
         } else if (next.token.tag === "IDEN") {
           const fieldName = next.token.name;

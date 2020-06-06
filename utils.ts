@@ -4,15 +4,51 @@ export type DiscriminateUnion<T, K extends keyof T, V extends T[K]> = T extends
   Record<K, V> ? T : never;
 
 export function prettyPrint(obj: any) {
-  return JSON.stringify(obj, null, 2);
+  function removeInfo(arg: any): any {
+    if (Array.isArray(arg)) {
+      return arg.map((el) => removeInfo(el));
+    }
+    if ("info" in arg) {
+      const { info, ...result } = arg;
+      if (Object.keys(result).length === 1) {
+        return removeInfo(result[Object.keys(result)[0]]);
+      }
+      return removeInfo(result);
+    }
+    const result: any = {};
+    for (const [k, v] of Object.entries(arg)) {
+      if (typeof v === "object") {
+        result[k] = removeInfo(v);
+      } else {
+        result[k] = v;
+      }
+    }
+    return result;
+  }
+  return JSON.stringify(removeInfo(obj), null, 2);
 }
 
-export const genUniq = Symbol;
+export function omit<T>(obj: Record<string, T>, keys: string[]) {
+  const result: Record<string, T> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (!keys.includes(k)) {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
+export const genUniqTypeVar = Symbol;
+export const genUniqRowVar = Symbol;
 //// For debugging...easier to console log than symbols
 // let i = 0;
-// export const genUniq = () => {
+// export const genUniqTypeVar = () => {
 //   i++;
 //   return `?X_${i}` as any;
+// };
+// export const genUniqRowVar = () => {
+//   i++;
+//   return `?p_${i}` as any;
 // };
 
 export function printType(t: ReturnType<typeof typeCheck>) {
@@ -49,8 +85,8 @@ export function printType(t: ReturnType<typeof typeCheck>) {
         return `(Listof ${helper(t.elementType.type)})`;
       case "TyRecord":
         return `{${
-          Object.keys(t.fieldTypes).sort().map((k) =>
-            `${k}:${helper(t.fieldTypes[k].type)}`
+          Object.keys(t.rowExp.fieldTypes).sort().map((k) =>
+            `${k}:${helper(t.rowExp.fieldTypes[k].type)}`
           ).join(" ")
         }}`;
       case "TyArrow":

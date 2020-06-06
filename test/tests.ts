@@ -1126,8 +1126,8 @@ Deno.test("record with field of list of records", () => {
   assertType(program, `{c:str d:bool}`);
   program = `(get-field {c:"hi" d:#f} "d")`;
   assertType(program, `bool`);
-  //// TODO this test fails as described in comment of TmProj case of recon
-  //// function in typechecker
-  // program = `(get-field (car (cons {c:"hi" d:#f} empty)) "d")`;
-  // assertType(program, `bool`);
+  // TODO this test fails as described in comment of TmProj case of recon
+  // function in typechecker
+  program = `(get-field (car (cons {c:"hi" d:#f} empty)) "d")`;
+  assertType(program, `bool`);
 });

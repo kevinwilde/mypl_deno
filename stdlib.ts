@@ -1,6 +1,6 @@
 import { Value } from "./interpreter.ts";
 import { TypeWithInfo } from "./typechecker.ts";
-import { DiscriminateUnion, genUniq } from "./utils.ts";
+import { DiscriminateUnion, genUniqTypeVar } from "./utils.ts";
 
 type StdLibFun = {
   tag: "TmStdlibFun";
@@ -92,7 +92,9 @@ const STD_LIB: Record<string, () => StdLibFun> = {
     ) => ({ tag: "TmStr", val: x.val + y.val }),
   }),
   "cons": () => {
-    const elementType = createTypeWithInfo({ tag: "TyId", name: genUniq() });
+    const elementType = createTypeWithInfo(
+      { tag: "TyId", name: genUniqTypeVar() },
+    );
     const listType = createTypeWithInfo({ tag: "TyList", elementType });
     return {
       tag: "TmStdlibFun",
@@ -112,7 +114,9 @@ const STD_LIB: Record<string, () => StdLibFun> = {
         createTypeWithInfo(
           {
             tag: "TyList",
-            elementType: createTypeWithInfo({ tag: "TyId", name: genUniq() }),
+            elementType: createTypeWithInfo(
+              { tag: "TyId", name: genUniqTypeVar() },
+            ),
           },
         ),
       ],
@@ -125,7 +129,9 @@ const STD_LIB: Record<string, () => StdLibFun> = {
     ) => ({ tag: "TmBool", val: lst.tag === "TmEmpty" }),
   }),
   "car": () => {
-    const elementType = createTypeWithInfo({ tag: "TyId", name: genUniq() });
+    const elementType = createTypeWithInfo(
+      { tag: "TyId", name: genUniqTypeVar() },
+    );
     return {
       tag: "TmStdlibFun",
       type: {
@@ -144,7 +150,9 @@ const STD_LIB: Record<string, () => StdLibFun> = {
     };
   },
   "cdr": () => {
-    const elementType = createTypeWithInfo({ tag: "TyId", name: genUniq() });
+    const elementType = createTypeWithInfo(
+      { tag: "TyId", name: genUniqTypeVar() },
+    );
     const listType = createTypeWithInfo({ tag: "TyList", elementType });
     return {
       tag: "TmStdlibFun",
