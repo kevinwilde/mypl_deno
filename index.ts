@@ -77,3 +77,6 @@ printErrorTestCase(`((lambda (x:{a:int}) (get-field x "a")) {})`);
 printErrorTestCase(`((lambda (x:{a:int}) (get-field x "a")) {c: 1})`);
 printErrorTestCase(`((lambda (x) (get-field x "a")) {})`);
 printErrorTestCase(`((lambda (x) (get-field x "a")) {c: 1})`);
+printErrorTestCase(
+  `(let do-num-op (lambda (op) (op 2 3)) (do-num-op string-concat))`,
+);

@@ -2,6 +2,7 @@ import { TermWithInfo } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
 import { RuntimeError } from "./exceptions.ts";
 import { DiscriminateUnion } from "./utils.ts";
+import { SourceInfo } from "./lexer.ts";
 
 export function evaluate(ast: TermWithInfo) {
   return interpretInEnv(ast, []);
@@ -36,7 +37,7 @@ function interpretInEnv(term: TermWithInfo, env: Environment): Value {
         env,
       };
     case "TmVar":
-      return lookupInEnv(term.term.name, env);
+      return lookupInEnv(term.term.name, term.info, env);
     case "TmEmpty": {
       return term.term;
     }
@@ -152,10 +153,10 @@ function interpretInEnv(term: TermWithInfo, env: Environment): Value {
   }
 }
 
-function lookupInEnv(varName: string, env: Environment) {
+function lookupInEnv(varName: string, info: SourceInfo, env: Environment) {
   const envResult = env.filter((item) => item.name == varName)[0];
   if (envResult) return envResult.value;
-  const stdlibValue = lookupInStdLib(varName);
+  const stdlibValue = lookupInStdLib(varName, info);
   if (stdlibValue) return stdlibValue;
   throw new Error(`unbound variable: ${varName}`);
 }

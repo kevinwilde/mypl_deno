@@ -49,11 +49,14 @@ export function typeCheck(term: TermWithInfo) {
   return finalType;
 }
 
-// TODO going to need to handle name clashes
-function getTypeFromContext(ctx: Context, varName: string): Type {
+function getTypeFromContext(
+  ctx: Context,
+  varName: string,
+  info: SourceInfo,
+): Type {
   const result = ctx.find((binding) => binding.name === varName);
   if (result) return result.type.type;
-  const stdLibResult = lookupInStdLib(varName);
+  const stdLibResult = lookupInStdLib(varName, info);
   if (stdLibResult) return stdLibResult.type;
   throw new Error(`Unbound variable: ${varName}`);
 }
@@ -82,7 +85,7 @@ function recon(
       ];
     }
     case "TmVar": {
-      const tyVar = getTypeFromContext(ctx, term.term.name);
+      const tyVar = getTypeFromContext(ctx, term.term.name, term.info);
       return [{ info: term.info, type: tyVar }, []];
     }
     case "TmEmpty": {

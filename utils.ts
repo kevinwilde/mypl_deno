@@ -5,6 +5,9 @@ export type DiscriminateUnion<T, K extends keyof T, V extends T[K]> = T extends
 
 export function prettyPrint(obj: any) {
   function removeInfo(arg: any): any {
+    if (!arg) {
+      return arg;
+    }
     if (Array.isArray(arg)) {
       return arg.map((el) => removeInfo(el));
     }

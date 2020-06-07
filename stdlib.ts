@@ -1,6 +1,7 @@
 import { Value } from "./interpreter.ts";
 import { TypeWithInfo } from "./typechecker.ts";
 import { DiscriminateUnion, genUniqTypeVar } from "./utils.ts";
+import { SourceInfo } from "./lexer.ts";
 
 type StdLibFun = {
   tag: "TmStdlibFun";
@@ -10,92 +11,91 @@ type StdLibFun = {
   impl: (...args: any[]) => Value;
 };
 
-// TODO this sucks
-const createTypeWithInfo = (t: TypeWithInfo["type"]): TypeWithInfo => {
-  return { info: { startIdx: -1, endIdx: -1 }, type: t };
-};
-
-const STD_LIB: Record<string, () => StdLibFun> = {
-  "+": () => ({
+const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
+  "+": (info) => ({
     tag: "TmStdlibFun",
     type: {
       tag: "TyArrow",
       paramTypes: [
-        createTypeWithInfo({ tag: "TyInt" }),
-        createTypeWithInfo({ tag: "TyInt" }),
+        { info, type: { tag: "TyInt" } },
+        { info, type: { tag: "TyInt" } },
       ],
-      returnType: createTypeWithInfo({ tag: "TyInt" }),
+      returnType: { info, type: { tag: "TyInt" } },
     },
     impl: (
       x: DiscriminateUnion<Value, "tag", "TmInt">,
       y: DiscriminateUnion<Value, "tag", "TmInt">,
     ) => ({ tag: "TmInt", val: x.val + y.val }),
   }),
-  "-": () => ({
+  "-": (info) => ({
     tag: "TmStdlibFun",
     type: {
       tag: "TyArrow",
       paramTypes: [
-        createTypeWithInfo({ tag: "TyInt" }),
-        createTypeWithInfo({ tag: "TyInt" }),
+        { info, type: { tag: "TyInt" } },
+        { info, type: { tag: "TyInt" } },
       ],
-      returnType: createTypeWithInfo({ tag: "TyInt" }),
+      returnType: { info, type: { tag: "TyInt" } },
     },
     impl: (
       x: DiscriminateUnion<Value, "tag", "TmInt">,
       y: DiscriminateUnion<Value, "tag", "TmInt">,
     ) => ({ tag: "TmInt", val: x.val - y.val }),
   }),
-  "*": () => ({
+  "*": (info) => ({
     tag: "TmStdlibFun",
     type: {
       tag: "TyArrow",
       paramTypes: [
-        createTypeWithInfo({ tag: "TyInt" }),
-        createTypeWithInfo({ tag: "TyInt" }),
+        { info, type: { tag: "TyInt" } },
+        { info, type: { tag: "TyInt" } },
       ],
-      returnType: createTypeWithInfo({ tag: "TyInt" }),
+      returnType: { info, type: { tag: "TyInt" } },
     },
     impl: (
       x: DiscriminateUnion<Value, "tag", "TmInt">,
       y: DiscriminateUnion<Value, "tag", "TmInt">,
     ) => ({ tag: "TmInt", val: x.val * y.val }),
   }),
-  "=": () => ({
+  "=": (info) => ({
     tag: "TmStdlibFun",
     type: {
       tag: "TyArrow",
       paramTypes: [
-        createTypeWithInfo({ tag: "TyInt" }),
-        createTypeWithInfo({ tag: "TyInt" }),
+        { info, type: { tag: "TyInt" } },
+        { info, type: { tag: "TyInt" } },
       ],
-      returnType: createTypeWithInfo({ tag: "TyBool" }),
+      returnType: { info, type: { tag: "TyBool" } },
     },
     impl: (
       x: DiscriminateUnion<Value, "tag", "TmInt">,
       y: DiscriminateUnion<Value, "tag", "TmInt">,
     ) => ({ tag: "TmBool", val: x.val === y.val }),
   }),
-  "string-concat": () => ({
+  "string-concat": (info) => ({
     tag: "TmStdlibFun",
     type: {
       tag: "TyArrow",
       paramTypes: [
-        createTypeWithInfo({ tag: "TyStr" }),
-        createTypeWithInfo({ tag: "TyStr" }),
+        { info, type: { tag: "TyStr" } },
+        { info, type: { tag: "TyStr" } },
       ],
-      returnType: createTypeWithInfo({ tag: "TyStr" }),
+      returnType: { info, type: { tag: "TyStr" } },
     },
     impl: (
       x: DiscriminateUnion<Value, "tag", "TmStr">,
       y: DiscriminateUnion<Value, "tag", "TmStr">,
     ) => ({ tag: "TmStr", val: x.val + y.val }),
   }),
-  "cons": () => {
-    const elementType = createTypeWithInfo(
-      { tag: "TyId", name: genUniqTypeVar() },
-    );
-    const listType = createTypeWithInfo({ tag: "TyList", elementType });
+  "cons": (info) => {
+    const elementType: TypeWithInfo = {
+      info,
+      type: { tag: "TyId", name: genUniqTypeVar() },
+    };
+    const listType: TypeWithInfo = {
+      info,
+      type: { tag: "TyList", elementType },
+    };
     return {
       tag: "TmStdlibFun",
       type: {
@@ -106,21 +106,21 @@ const STD_LIB: Record<string, () => StdLibFun> = {
       impl: (car: Value, cdr: Value) => ({ tag: "TmCons", car, cdr }),
     };
   },
-  "empty?": () => ({
+  "empty?": (info) => ({
     tag: "TmStdlibFun",
     type: {
       tag: "TyArrow",
       paramTypes: [
-        createTypeWithInfo(
-          {
+        ({
+          info,
+          type: {
             tag: "TyList",
-            elementType: createTypeWithInfo(
-              { tag: "TyId", name: genUniqTypeVar() },
-            ),
+            elementType:
+              ({ info, type: { tag: "TyId", name: genUniqTypeVar() } }),
           },
-        ),
+        }),
       ],
-      returnType: createTypeWithInfo({ tag: "TyBool" }),
+      returnType: ({ info, type: { tag: "TyBool" } }),
     },
     impl: (
       lst:
@@ -128,15 +128,16 @@ const STD_LIB: Record<string, () => StdLibFun> = {
         | DiscriminateUnion<Value, "tag", "TmEmpty">,
     ) => ({ tag: "TmBool", val: lst.tag === "TmEmpty" }),
   }),
-  "car": () => {
-    const elementType = createTypeWithInfo(
-      { tag: "TyId", name: genUniqTypeVar() },
-    );
+  "car": (info) => {
+    const elementType: TypeWithInfo = {
+      info,
+      type: { tag: "TyId", name: genUniqTypeVar() },
+    };
     return {
       tag: "TmStdlibFun",
       type: {
         tag: "TyArrow",
-        paramTypes: [createTypeWithInfo({ tag: "TyList", elementType })],
+        paramTypes: [{ info, type: { tag: "TyList", elementType } }],
         returnType: elementType,
       },
       impl: (
@@ -149,11 +150,15 @@ const STD_LIB: Record<string, () => StdLibFun> = {
       },
     };
   },
-  "cdr": () => {
-    const elementType = createTypeWithInfo(
-      { tag: "TyId", name: genUniqTypeVar() },
-    );
-    const listType = createTypeWithInfo({ tag: "TyList", elementType });
+  "cdr": (info) => {
+    const elementType: TypeWithInfo = {
+      info,
+      type: { tag: "TyId", name: genUniqTypeVar() },
+    };
+    const listType: TypeWithInfo = {
+      info,
+      type: { tag: "TyList", elementType },
+    };
     return {
       tag: "TmStdlibFun",
       type: {
@@ -175,6 +180,7 @@ const STD_LIB: Record<string, () => StdLibFun> = {
 
 export function lookupInStdLib(
   varName: string,
+  info: SourceInfo,
 ): (ReturnType<typeof STD_LIB[keyof typeof STD_LIB]>) | undefined {
-  return STD_LIB[varName]?.() || undefined;
+  return STD_LIB[varName]?.(info) || undefined;
 }
