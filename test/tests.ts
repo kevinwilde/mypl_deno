@@ -1107,6 +1107,16 @@ Deno.test("calling a function that takes a record (without type ann)", () => {
   assertResult(program, { tag: "TmStr", val: "hi" });
 });
 
+Deno.test("calling a function that takes a record with different shaped records", () => {
+  let program = `
+    (let get-a
+      (lambda (x) (get-field x "a"))
+      (+ (get-a {a:7 b:"hi"})
+         (get-a {a:1 c:#f})))`;
+  assertType(program, "int");
+  assertResult(program, { tag: "TmInt", val: 8 });
+});
+
 Deno.test("[TypeError] calling a function that takes a record (with type ann)", () => {
   let program = `((lambda (x:{a:int b:str}) x) {a:7})`;
   expectTypeError(program);
