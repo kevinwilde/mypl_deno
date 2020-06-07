@@ -1126,8 +1126,43 @@ Deno.test("record with field of list of records", () => {
   assertType(program, `{c:str d:bool}`);
   program = `(get-field {c:"hi" d:#f} "d")`;
   assertType(program, `bool`);
-  // TODO this test fails as described in comment of TmProj case of recon
-  // function in typechecker
   program = `(get-field (car (cons {c:"hi" d:#f} empty)) "d")`;
   assertType(program, `bool`);
+
+  program = `(lambda (x) (get-field (car x) "d"))`;
+  assertType(program, `(-> ((Listof {d:'a})) 'a)`);
+  program = `((lambda (x) (get-field (car x) "d")) (cons {c:"hi" d:#f} empty))`;
+  assertType(program, `bool`);
+  assertResult(program, { tag: "TmBool", val: false });
+
+  program = `(lambda (x) (car (get-field (car x) "d")))`;
+  assertType(program, `(-> ((Listof {d:(Listof 'a)})) 'a)`);
+  program =
+    `((lambda (x) (get-field (car x) "d")) (cons {c:"hi" d:(cons #f empty)} empty))`;
+  assertType(program, `(Listof bool)`);
+  assertResult(
+    program,
+    {
+      tag: "TmCons",
+      car: { tag: "TmBool", val: false },
+      cdr: { tag: "TmEmpty" },
+    },
+  );
+  program =
+    `((lambda (x) (car (get-field (car x) "d"))) (cons {c:"hi" d:(cons #f empty)} empty))`;
+  assertType(program, `bool`);
+  assertResult(program, { tag: "TmBool", val: false });
+});
+
+Deno.test("[TypeError] record with field of list of records", () => {
+  let program = `(get-field {c:"hi" d:#f} "a")`;
+  expectTypeError(program);
+  program = `(get-field (car (cons {c:"hi" d:#f} empty)) "a")`;
+  expectTypeError(program);
+  program = `((lambda (x) (get-field (car x) "d")) (cons {c:"hi"} empty))`;
+  expectTypeError(program);
+
+  program =
+    `((lambda (x) (car (get-field (car x) "d"))) (cons {c:"hi" d:#f} empty))`;
+  expectTypeError(program);
 });
