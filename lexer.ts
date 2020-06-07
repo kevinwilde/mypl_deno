@@ -73,7 +73,7 @@ export function createLexer(s: string): Lexer {
       // - parens
       // - curly braces
       // - colon
-      // don't need arrow since it can only come after paren
+      // don't need arrow since it can only come after paren when used in type ann
       while (j < input.length && !/(\s|\(|\)|\{|\}|\:)/.test(input[j])) {
         char += input[j];
         j++;

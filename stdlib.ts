@@ -12,6 +12,47 @@ type StdLibFun = {
 };
 
 const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
+  "not": (info) => ({
+    tag: "TmStdlibFun",
+    type: {
+      tag: "TyArrow",
+      paramTypes: [{ info, type: { tag: "TyBool" } }],
+      returnType: { info, type: { tag: "TyBool" } },
+    },
+    impl: (
+      x: DiscriminateUnion<Value, "tag", "TmBool">,
+    ) => ({ tag: "TmBool", val: !(x.val) }),
+  }),
+  "and": (info) => ({
+    tag: "TmStdlibFun",
+    type: {
+      tag: "TyArrow",
+      paramTypes: [
+        { info, type: { tag: "TyBool" } },
+        { info, type: { tag: "TyBool" } },
+      ],
+      returnType: { info, type: { tag: "TyBool" } },
+    },
+    impl: (
+      x: DiscriminateUnion<Value, "tag", "TmBool">,
+      y: DiscriminateUnion<Value, "tag", "TmBool">,
+    ) => ({ tag: "TmBool", val: x.val && y.val }),
+  }),
+  "or": (info) => ({
+    tag: "TmStdlibFun",
+    type: {
+      tag: "TyArrow",
+      paramTypes: [
+        { info, type: { tag: "TyBool" } },
+        { info, type: { tag: "TyBool" } },
+      ],
+      returnType: { info, type: { tag: "TyBool" } },
+    },
+    impl: (
+      x: DiscriminateUnion<Value, "tag", "TmBool">,
+      y: DiscriminateUnion<Value, "tag", "TmBool">,
+    ) => ({ tag: "TmBool", val: x.val || y.val }),
+  }),
   "+": (info) => ({
     tag: "TmStdlibFun",
     type: {
@@ -71,6 +112,43 @@ const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
       x: DiscriminateUnion<Value, "tag", "TmInt">,
       y: DiscriminateUnion<Value, "tag", "TmInt">,
     ) => ({ tag: "TmBool", val: x.val === y.val }),
+  }),
+  "string-length": (info) => ({
+    tag: "TmStdlibFun",
+    type: {
+      tag: "TyArrow",
+      paramTypes: [{ info, type: { tag: "TyStr" } }],
+      returnType: { info, type: { tag: "TyInt" } },
+    },
+    impl: (
+      x: DiscriminateUnion<Value, "tag", "TmStr">,
+    ) => ({ tag: "TmInt", val: x.val.length }),
+  }),
+  "string->list": (info) => ({
+    tag: "TmStdlibFun",
+    type: {
+      tag: "TyArrow",
+      paramTypes: [{ info, type: { tag: "TyStr" } }],
+      returnType: {
+        info,
+        type: { tag: "TyList", elementType: { info, type: { tag: "TyStr" } } },
+      },
+    },
+    impl: (
+      x: DiscriminateUnion<Value, "tag", "TmStr">,
+    ) => {
+      let curTerm: Value = { tag: "TmEmpty" };
+      let i = x.val.length - 1;
+      while (i >= 0) {
+        curTerm = {
+          tag: "TmCons",
+          car: { tag: "TmStr", val: x.val[i] },
+          cdr: curTerm,
+        };
+        i--;
+      }
+      return curTerm;
+    },
   }),
   "string-concat": (info) => ({
     tag: "TmStdlibFun",

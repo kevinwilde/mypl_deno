@@ -104,6 +104,42 @@ Deno.test("defining a variable (string)", () => {
   assertResult(program, { tag: "TmStr", val: "hello" });
 });
 
+Deno.test("defining a variable (bool)", () => {
+  let program = "(let x #t x)";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+  program = "(let x #f x)";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: false });
+});
+
+Deno.test("not", () => {
+  let program = "(let x #t (not x))";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: false });
+  program = "(let x #f (not x))";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+});
+
+Deno.test("and", () => {
+  let program = "(let x #t (and (not x) x))";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: false });
+  program = "(let x #f (and (not x) #t))";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+});
+
+Deno.test("or", () => {
+  let program = "(let x #t (or (not x) x))";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+  program = "(let x #t (or (not x) #f))";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: false });
+});
+
 Deno.test("calling a function (with type ann)", () => {
   let program = "((lambda (x:bool) x) #t)";
   assertType(program, "bool");
@@ -245,6 +281,38 @@ Deno.test("conditional with equality (without type ann)", () => {
   program = "((lambda (w x y z) (if (= w x) y z)) 42 43 1 2)";
   assertType(program, "int");
   assertResult(program, { tag: "TmInt", val: 2 });
+});
+
+Deno.test("string-length", () => {
+  let program = `(string-length "hello")`;
+  assertType(program, `int`);
+  assertResult(program, { tag: "TmInt", val: 5 });
+});
+
+Deno.test("string->list", () => {
+  let program = `(string->list "hello")`;
+  assertType(program, `(Listof str)`);
+  assertResult(program, {
+    tag: "TmCons",
+    car: { tag: "TmStr", val: "h" },
+    cdr: {
+      tag: "TmCons",
+      car: { tag: "TmStr", val: "e" },
+      cdr: {
+        tag: "TmCons",
+        car: { tag: "TmStr", val: "l" },
+        cdr: {
+          tag: "TmCons",
+          car: { tag: "TmStr", val: "l" },
+          cdr: {
+            tag: "TmCons",
+            car: { tag: "TmStr", val: "o" },
+            cdr: { tag: "TmEmpty" },
+          },
+        },
+      },
+    },
+  });
 });
 
 Deno.test("string-concat", () => {
