@@ -1280,3 +1280,25 @@ Deno.test("[TypeError] record with field of list of records", () => {
     `((lambda (x) (car (get-field (car x) "d"))) (cons {c:"hi" d:#f} empty))`;
   expectTypeError(program);
 });
+
+Deno.test("hamming distance", () => {
+  let program = (str1: string, str2: string) => (`
+    (let hamming-distance (lambda (s1 s2)
+      (if (not (= (string-length s1) (string-length s2)))
+          -1
+          (let helper
+            (lambda (l1 l2 acc)
+              (if (empty? l1)
+                  acc
+                  (helper (cdr l1) (cdr l2) (if (= (car l1) (car l2)) acc (+ acc 1)))))
+            (helper (string->list s1) (string->list s2) 0))))
+      (hamming-distance "${str1}" "${str2}"))
+  `);
+  assertType(program("", ""), `int`);
+  assertResult(program("", ""), { tag: "TmInt", val: 0 });
+  assertResult(program("a", ""), { tag: "TmInt", val: -1 });
+  assertResult(program("a", "a"), { tag: "TmInt", val: 0 });
+  assertResult(program("a", "b"), { tag: "TmInt", val: 1 });
+  assertResult(program("ACCAGGG", "ACTATGG"), { tag: "TmInt", val: 2 });
+  assertResult(program("hellothere", "yellowhair"), { tag: "TmInt", val: 5 });
+});
