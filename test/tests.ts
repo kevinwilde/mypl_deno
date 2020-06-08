@@ -1428,3 +1428,100 @@ Deno.test("[TypeError] function taking record ref and mutating", () => {
   `;
   expectTypeError(program);
 });
+
+Deno.test("list contains", () => {
+  let program = `
+    (let list-contains
+      (lambda (lst val)
+        (if (empty? lst)
+            #f
+            (if (= (car lst) val)
+                #t
+                (list-contains (cdr lst) val))))
+      (list-contains (cons 1 empty) 2))
+  `;
+  assertType(program, `bool`);
+  assertResult(program, { tag: "TmBool", val: false });
+  program = `
+    (let list-contains
+      (lambda (lst val)
+        (if (empty? lst)
+            #f
+            (if (= (car lst) val)
+                #t
+                (list-contains (cdr lst) val))))
+      (list-contains (cons 1 (cons 2 empty)) 2))
+  `;
+  assertType(program, `bool`);
+  assertResult(program, { tag: "TmBool", val: true });
+});
+
+Deno.test("Using ref to memoize last call", () => {
+  let program = `
+  (let list-contains
+    (let last-call (ref {lst: empty val:1 result:#f})
+      (let helper
+        (lambda (lst val)
+          (if (and (= lst (get-field (get-ref last-call) "lst"))
+                  (= val (get-field (get-ref last-call) "val")))
+              {result: (get-field (get-ref last-call) "result") cache-hit:#t}
+              (if (empty? lst)
+                (begin
+                  (set-ref last-call {lst:lst val:val result:#f})
+                  {result:#f cache-hit:#f})
+                (if (= (car lst) val)
+                    (begin
+                      (set-ref last-call {lst:lst val:val result:#t})
+                      {result:#t cache-hit:#f})
+                    (helper (cdr lst) val)))))
+          helper))
+    (let my-list (cons 1 (cons 2 empty))
+      (list-contains my-list 2)))
+  `;
+  assertType(program, `{cache-hit:bool result:bool}`);
+  assertResult(
+    program,
+    {
+      tag: "TmRecord",
+      fields: {
+        "cache-hit": { tag: "TmBool", val: false },
+        result: { tag: "TmBool", val: true },
+      },
+    },
+  );
+
+  program = `
+    (let list-contains
+      (let last-call (ref {lst: empty val:1 result:#f})
+        (let helper
+          (lambda (lst val)
+            (if (and (= lst (get-field (get-ref last-call) "lst"))
+                    (= val (get-field (get-ref last-call) "val")))
+                {result: (get-field (get-ref last-call) "result") cache-hit:#t}
+                (if (empty? lst)
+                  (begin
+                    (set-ref last-call {lst:lst val:val result:#f})
+                    {result:#f cache-hit:#f})
+                  (if (= (car lst) val)
+                      (begin
+                        (set-ref last-call {lst:lst val:val result:#t})
+                        {result:#t cache-hit:#f})
+                      (helper (cdr lst) val)))))
+            helper))
+      (let my-list (cons 1 (cons 2 empty))
+        (begin
+          (list-contains my-list 2)
+          (list-contains my-list 2))))
+  `;
+  assertType(program, `{cache-hit:bool result:bool}`);
+  assertResult(
+    program,
+    {
+      tag: "TmRecord",
+      fields: {
+        "cache-hit": { tag: "TmBool", val: true },
+        result: { tag: "TmBool", val: true },
+      },
+    },
+  );
+});
