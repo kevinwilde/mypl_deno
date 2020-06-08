@@ -8,6 +8,7 @@ type Type =
   | { tag: "TyBool" }
   | { tag: "TyInt" }
   | { tag: "TyStr" }
+  | { tag: "TyRef"; valType: TypeWithInfo }
   | { tag: "TyList"; elementType: TypeWithInfo }
   | { tag: "TyRecord"; rowExp: RowExpression }
   | { tag: "TyArrow"; paramTypes: TypeWithInfo[]; returnType: TypeWithInfo }
@@ -67,26 +68,24 @@ function recon(
 ): [TypeWithInfo, Constraints] {
   switch (term.term.tag) {
     case "TmBool": {
-      return [
-        { info: term.info, type: { tag: "TyBool" } },
-        [],
-      ];
+      return [{ info: term.info, type: { tag: "TyBool" } }, []];
     }
     case "TmInt": {
-      return [
-        { info: term.info, type: { tag: "TyInt" } },
-        [],
-      ];
+      return [{ info: term.info, type: { tag: "TyInt" } }, []];
     }
     case "TmStr": {
-      return [
-        { info: term.info, type: { tag: "TyStr" } },
-        [],
-      ];
+      return [{ info: term.info, type: { tag: "TyStr" } }, []];
     }
     case "TmVar": {
       const tyVar = getTypeFromContext(ctx, term.term.name, term.info);
       return [{ info: term.info, type: tyVar }, []];
+    }
+    case "TmRef": {
+      const [tyT1, constr1] = recon(ctx, term.term.val);
+      return [
+        { info: term.info, type: { tag: "TyRef", valType: tyT1 } },
+        constr1,
+      ];
     }
     case "TmEmpty": {
       return [
@@ -106,14 +105,8 @@ function recon(
     case "TmCons": {
       // 1 - car
       // 2 - cdr
-      const [tyT1, constr1] = recon(
-        ctx,
-        term.term.car,
-      );
-      const [tyT2, constr2] = recon(
-        ctx,
-        term.term.cdr,
-      );
+      const [tyT1, constr1] = recon(ctx, term.term.car);
+      const [tyT2, constr2] = recon(ctx, term.term.cdr);
       const newConstraints: Constraints = [
         {
           constraintType: "type",
@@ -138,10 +131,7 @@ function recon(
       const fieldTypes: Record<string, TypeWithInfo> = {};
       const fieldConstraints = [];
       for (const [fieldName, fieldTerm] of Object.entries(term.term.fields)) {
-        const [tyF, constr2] = recon(
-          ctx,
-          fieldTerm,
-        );
+        const [tyF, constr2] = recon(ctx, fieldTerm);
         fieldTypes[fieldName] = tyF;
         fieldConstraints.push(...constr2);
       }
@@ -158,10 +148,7 @@ function recon(
     }
     case "TmProj": {
       // 1 - record
-      const [tyT1, constr1] = recon(
-        ctx,
-        term.term.record,
-      );
+      const [tyT1, constr1] = recon(ctx, term.term.record);
       let resultType: TypeWithInfo;
       if (
         tyT1.type.tag === "TyRecord" &&
@@ -203,18 +190,9 @@ function recon(
       // 1 - cond
       // 2 - then
       // 3 - else
-      const [tyT1, constr1] = recon(
-        ctx,
-        term.term.cond,
-      );
-      const [tyT2, constr2] = recon(
-        ctx,
-        term.term.then,
-      );
-      const [tyT3, constr3] = recon(
-        ctx,
-        term.term.else,
-      );
+      const [tyT1, constr1] = recon(ctx, term.term.cond);
+      const [tyT2, constr2] = recon(ctx, term.term.then);
+      const [tyT3, constr3] = recon(ctx, term.term.else);
       const newConstraints: Constraints = [
         {
           constraintType: "type",
@@ -228,10 +206,7 @@ function recon(
           constraint: [tyT2, tyT3], // then and else must have same type
         },
       ];
-      return [
-        tyT3,
-        [...newConstraints, ...constr1, ...constr2, ...constr3],
-      ];
+      return [tyT3, [...newConstraints, ...constr1, ...constr2, ...constr3]];
     }
     case "TmLet": {
       // 1 - value
@@ -293,10 +268,7 @@ function recon(
         );
       }
       const newCtx = [...paramsCtx, ...ctx];
-      const [tyT2, constr2] = recon(
-        newCtx,
-        term.term.body,
-      );
+      const [tyT2, constr2] = recon(newCtx, term.term.body);
       return [
         {
           info: term.info,
@@ -312,10 +284,7 @@ function recon(
     case "TmApp": {
       // 1 - func
       // argTypes
-      const [tyT1, constr1] = recon(
-        ctx,
-        term.term.func,
-      );
+      const [tyT1, constr1] = recon(ctx, term.term.func);
 
       let argTypes = [];
       let argConstraints = [];
@@ -368,6 +337,14 @@ function substituteInTy(tyX: symbol, tyT: Type, tyS: Type) {
       case "TyInt":
       case "TyStr":
         return tyS;
+      case "TyRef":
+        return {
+          tag: "TyRef",
+          valType: {
+            info: tyS.valType.info,
+            type: helper(tyS.valType.type),
+          },
+        };
       case "TyList":
         return {
           tag: "TyList",
@@ -501,6 +478,8 @@ function occursIn(tyX: symbol, tyT: Type) {
       case "TyInt":
       case "TyStr":
         return false;
+      case "TyRef":
+        return helper(tyT.valType.type);
       case "TyList":
         return helper(tyT.elementType.type);
       case "TyRecord": {
@@ -571,6 +550,17 @@ function unify(constraints: Constraints) {
             case "TyInt":
             case "TyStr":
               return helper(restConstraints);
+            case "TyRef": {
+              if (tyT.type.tag !== "TyRef") throw new Error();
+              const valConstraint: Constraints[0] = {
+                constraintType: "type",
+                constraint: [
+                  tyS.type.valType,
+                  tyT.type.valType,
+                ],
+              };
+              return helper([valConstraint, ...restConstraints]);
+            }
             case "TyList": {
               if (tyT.type.tag !== "TyList") throw new Error();
               const elementConstraint: Constraints[0] = {

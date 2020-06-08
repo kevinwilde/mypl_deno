@@ -36,6 +36,8 @@ function assertResult(
             v2.fields[k] !== undefined &&
             valuesEqual(v1.fields[k], v2.fields[k])
           );
+      case "TmLocation":
+        return v2.tag === "TmLocation" && valuesEqual(v1.val, v2.val);
       case "TmStdlibFun":
       case "TmClosure":
         return false; // TODO ?
@@ -1301,4 +1303,128 @@ Deno.test("hamming distance", () => {
   assertResult(program("a", "b"), { tag: "TmInt", val: 1 });
   assertResult(program("ACCAGGG", "ACTATGG"), { tag: "TmInt", val: 2 });
   assertResult(program("hellothere", "yellowhair"), { tag: "TmInt", val: 5 });
+});
+
+Deno.test("ref", () => {
+  let program = `
+    (let x (ref 1)
+      (begin
+        (set-ref x 2)
+        (get-ref x)))
+  `;
+  assertType(program, `int`);
+  assertResult(program, { tag: "TmInt", val: 2 });
+  program = `
+    (let x (ref 1)
+      (begin
+        (set-ref x (+ (get-ref x) 1))
+        (get-ref x)))
+  `;
+  assertType(program, `int`);
+  assertResult(program, { tag: "TmInt", val: 2 });
+});
+
+Deno.test("[TypeError] ref", () => {
+  let program = `
+    (let x (ref 1)
+      (begin
+        (set-ref x #t)
+        (get-ref x)))
+  `;
+  expectTypeError(program);
+  program = `
+    (let x (ref "hi")
+      (begin
+        (set-ref x (+ (get-ref x) 1))
+        (get-ref x)))
+  `;
+  expectTypeError(program);
+});
+
+Deno.test("ref of record", () => {
+  let program = `
+    (let x (ref {a:1})
+      (let set-a-to-2 (lambda (r) (set-ref r {a:2}))
+        (begin
+          (set-a-to-2 x)
+          (get-ref x))))
+  `;
+  assertType(program, `{a:int}`);
+  assertResult(
+    program,
+    { tag: "TmRecord", fields: { a: { tag: "TmInt", val: 2 } } },
+  );
+});
+
+Deno.test("[TypeError] ref of record", () => {
+  let program = `
+    (let x (ref {a:1 b:"hi"})
+      (let set-a-to-2 (lambda (r) (set-ref r {a:2}))
+        (begin
+          (set-a-to-2 x)
+          (get-ref x))))
+  `;
+  expectTypeError(program);
+});
+
+Deno.test("function taking record ref", () => {
+  let program = `
+    (let x (ref {a:1 b:"hi"})
+      (let get-a (lambda (r) (get-field (get-ref r) "a"))
+        (get-a x)))
+  `;
+  assertType(program, `int`);
+  assertResult(program, { tag: "TmInt", val: 1 });
+});
+
+Deno.test("function taking record ref and mutating", () => {
+  let program = `
+    (let x (ref {a:1 b:"hi"})
+      (let set-a-to-2
+        (lambda (r)
+          (begin
+            (set-ref r {a: 2 b:(get-field (get-ref r) "b")})
+            r))
+        (set-a-to-2 x)))
+  `;
+  assertType(program, `(ref {a:int b:str})`);
+  assertResult(program, {
+    tag: "TmLocation",
+    val: {
+      tag: "TmRecord",
+      fields: { a: { tag: "TmInt", val: 2 }, b: { tag: "TmStr", val: "hi" } },
+    },
+  });
+  program = `
+    (let x (ref {a:1 b:"bye"})
+      (let set-a-to-2
+        (lambda (r)
+          (begin
+            (set-ref r {a: 2 b:(get-field (get-ref r) "b")})
+            r))
+        (set-a-to-2 x)))
+  `;
+  assertType(program, `(ref {a:int b:str})`);
+  assertResult(program, {
+    tag: "TmLocation",
+    val: {
+      tag: "TmRecord",
+      fields: { a: { tag: "TmInt", val: 2 }, b: { tag: "TmStr", val: "bye" } },
+    },
+  });
+});
+
+Deno.test("[TypeError] function taking record ref and mutating", () => {
+  // Leaves off b field when mutating. This is a problem as after the function
+  // exits, x should still be of type (ref {a:int b:str})
+  let program = `
+    (let x (ref {a:1 b:"hi"})
+      (let set-a-to-2
+        (lambda (r)
+          (begin
+            (set-ref r {a: 2})
+            r))
+        (set-a-to-2 x)))
+  `;
+  expectTypeError(program);
 });

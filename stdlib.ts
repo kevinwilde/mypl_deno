@@ -120,6 +120,7 @@ const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
           }
           case "TmEmpty":
             return { tag: "TmBool", val: y.tag === "TmEmpty" };
+          case "TmLocation":
           case "TmCons":
           case "TmClosure":
           case "TmRecord":
@@ -272,6 +273,64 @@ const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
         if (lst.tag === "TmEmpty") throw new Error("Called cdr on empty list");
         return lst.cdr;
       },
+    };
+  },
+  "get-ref": (info) => {
+    const valType: TypeWithInfo = {
+      info,
+      type: { tag: "TyId", name: genUniqTypeVar() },
+    };
+    return {
+      tag: "TmStdlibFun",
+      type: {
+        tag: "TyArrow",
+        paramTypes: [{ info, type: { tag: "TyRef", valType } }],
+        returnType: valType,
+      },
+      impl: (ref: DiscriminateUnion<Value, "tag", "TmLocation">) => ref.val,
+    };
+  },
+  "set-ref": (info) => {
+    const valType: TypeWithInfo = {
+      info,
+      type: { tag: "TyId", name: genUniqTypeVar() },
+    };
+    const refType: TypeWithInfo = {
+      info,
+      type: { tag: "TyRef", valType },
+    };
+    return {
+      tag: "TmStdlibFun",
+      type: {
+        tag: "TyArrow",
+        paramTypes: [refType, valType],
+        returnType: refType, // TODO return void
+      },
+      impl: (
+        ref: DiscriminateUnion<Value, "tag", "TmLocation">,
+        val: Value,
+      ) => {
+        ref.val = val;
+        return ref;
+      },
+    };
+  },
+  "begin": (info) => {
+    const resultType: TypeWithInfo = {
+      info,
+      type: { tag: "TyId", name: genUniqTypeVar() },
+    };
+    return {
+      tag: "TmStdlibFun",
+      type: {
+        tag: "TyArrow",
+        paramTypes: [
+          { info, type: { tag: "TyId", name: genUniqTypeVar() } }, // TODO only accept void
+          resultType,
+        ],
+        returnType: resultType,
+      },
+      impl: (arg1: Value, arg2: Value) => arg2,
     };
   },
 };

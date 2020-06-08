@@ -17,6 +17,7 @@ export type Value =
   | { tag: "TmEmpty" }
   | { tag: "TmCons"; car: Value; cdr: Value }
   | { tag: "TmRecord"; fields: Record<string, Value> }
+  | { tag: "TmLocation"; val: Value }
   | { tag: "TmClosure"; params: string[]; body: TermWithInfo; env: Environment }
   | {
     tag: "TmStdlibFun";
@@ -38,6 +39,8 @@ function interpretInEnv(term: TermWithInfo, env: Environment): Value {
       };
     case "TmVar":
       return lookupInEnv(term.term.name, term.info, env);
+    case "TmRef":
+      return { tag: "TmLocation", val: interpretInEnv(term.term.val, env) };
     case "TmEmpty": {
       return term.term;
     }

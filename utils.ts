@@ -96,6 +96,8 @@ export function printType(t: ReturnType<typeof typeCheck>) {
         return `(-> (${(t.paramTypes.map((p) => helper(p.type))).join(" ")}) ${
           helper(t.returnType.type)
         })`;
+      case "TyRef":
+        return `(ref ${helper(t.valType.type)})`;
       case "TyId": {
         if (!(symbolToPrettyType.has(t.name))) {
           symbolToPrettyType.set(t.name, nextFree());

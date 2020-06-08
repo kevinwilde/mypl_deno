@@ -11,6 +11,7 @@ type Term = (
   | { tag: "TmRecord"; fields: Record<string, TermWithInfo> }
   | { tag: "TmProj"; record: TermWithInfo; fieldName: string } // record should be TmRecord when well-formed
   | { tag: "TmVar"; name: string }
+  | { tag: "TmRef"; val: TermWithInfo }
   | {
     tag: "TmIf";
     cond: TermWithInfo;
@@ -222,9 +223,28 @@ export function createAST(lexer: Lexer): TermWithInfo {
           case "IDEN": {
             // Special cases for IDEN -- things that are their own kind of term,
             // not TmApp
-            // TODO clean up this in relation to stdlib
             if (nextToken.token.tag === "IDEN") {
-              if (nextToken.token.name === "get-field") {
+              if (nextToken.token.name === "ref") {
+                const ref_ = lexer.nextToken();
+                const refVal = createAST(lexer);
+                const closeParen = lexer.nextToken();
+                if (closeParen === null) {
+                  throw new EOFError();
+                }
+                if (closeParen.token.tag !== "RPAREN") {
+                  throw new ParseError(
+                    `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
+                    closeParen.info,
+                  );
+                }
+                return {
+                  info: {
+                    startIdx: cur.info.startIdx,
+                    endIdx: closeParen.info.endIdx,
+                  },
+                  term: { tag: "TmRef", val: refVal },
+                };
+              } else if (nextToken.token.name === "get-field") {
                 const getField_ = lexer.nextToken();
                 const record = createAST(lexer);
                 const fieldName = lexer.nextToken();
@@ -369,6 +389,24 @@ function parseTypeAnn(lexer: Lexer): TypeWithInfo {
       const next = lexer.nextToken();
       if (next === null) {
         throw new EOFError();
+      } else if (next.token.tag === "IDEN" && next.token.name === "ref") {
+        const valType = parseTypeAnn(lexer);
+
+        const rparen_ = lexer.nextToken();
+        if (rparen_ === null) {
+          throw new EOFError();
+        }
+        if (rparen_.token.tag !== "RPAREN") {
+          throw new ParseError(
+            `Unexpected token: expected \`)\` but got ${rparen_.token.tag}`,
+            rparen_.info,
+          );
+        }
+
+        return {
+          info: { startIdx: cur.info.startIdx, endIdx: rparen_.info.endIdx },
+          type: { tag: "TyRef", valType },
+        };
       } else if (next.token.tag === "IDEN" && next.token.name === "Listof") {
         const elementType = parseTypeAnn(lexer);
 
