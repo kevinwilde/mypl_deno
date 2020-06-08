@@ -98,21 +98,41 @@ const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
       y: DiscriminateUnion<Value, "tag", "TmInt">,
     ) => ({ tag: "TmInt", val: x.val * y.val }),
   }),
-  "=": (info) => ({
-    tag: "TmStdlibFun",
-    type: {
-      tag: "TyArrow",
-      paramTypes: [
-        { info, type: { tag: "TyInt" } },
-        { info, type: { tag: "TyInt" } },
-      ],
-      returnType: { info, type: { tag: "TyBool" } },
-    },
-    impl: (
-      x: DiscriminateUnion<Value, "tag", "TmInt">,
-      y: DiscriminateUnion<Value, "tag", "TmInt">,
-    ) => ({ tag: "TmBool", val: x.val === y.val }),
-  }),
+  "=": (info) => {
+    const paramType: TypeWithInfo = {
+      info,
+      type: { tag: "TyId", name: genUniqTypeVar() },
+    };
+    return {
+      tag: "TmStdlibFun",
+      type: {
+        tag: "TyArrow",
+        paramTypes: [paramType, paramType],
+        returnType: { info, type: { tag: "TyBool" } },
+      },
+      impl: (x: Value, y: Value) => {
+        switch (x.tag) {
+          case "TmBool":
+          case "TmStr":
+          case "TmInt": {
+            if (x.tag !== y.tag) throw new Error();
+            return { tag: "TmBool", val: x.val == y.val };
+          }
+          case "TmEmpty":
+            return { tag: "TmBool", val: y.tag === "TmEmpty" };
+          case "TmCons":
+          case "TmClosure":
+          case "TmRecord":
+          case "TmStdlibFun":
+            return { tag: "TmBool", val: x === y };
+          default: {
+            const _exhaustiveCheck: never = x;
+            throw new Error();
+          }
+        }
+      },
+    };
+  },
   "string-length": (info) => ({
     tag: "TmStdlibFun",
     type: {

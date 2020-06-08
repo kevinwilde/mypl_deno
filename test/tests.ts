@@ -140,6 +140,42 @@ Deno.test("or", () => {
   assertResult(program, { tag: "TmBool", val: false });
 });
 
+Deno.test("=", () => {
+  let program = "=";
+  assertType(program, "(-> ('a 'a) bool)");
+
+  program = "(= 2 2)";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+  program = "(= 2 3)";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: false });
+
+  program = "(= #f #f)";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+  program = "(= #f #t)";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: false });
+
+  program = `(= "hi" "hi")`;
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+  program = `(= "hi" "bye")`;
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: false });
+
+  program = "(= empty empty)";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+  program = "(= (cons 2 empty) (cons 2 empty))";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: false });
+  program = "(let x (cons 2 empty) (= x x))";
+  assertType(program, "bool");
+  assertResult(program, { tag: "TmBool", val: true });
+});
+
 Deno.test("calling a function (with type ann)", () => {
   let program = "((lambda (x:bool) x) #t)";
   assertType(program, "bool");
