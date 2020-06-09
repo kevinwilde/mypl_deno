@@ -13,6 +13,9 @@ type Token =
       | { tag: "LET" }
       | { tag: "IF" }
       | { tag: "LAMBDA" }
+      | { tag: "REF" }
+      | { tag: "PROJ" }
+      | { tag: "EMPTY" }
       | { tag: "BOOL"; val: boolean }
       | { tag: "INT"; val: number }
       | { tag: "STR"; val: string }
@@ -103,6 +106,12 @@ export function createLexer(s: string): Lexer {
           return { tag: "IF" };
         case "lambda":
           return { tag: "LAMBDA" };
+        case "ref":
+          return { tag: "REF" };
+        case "get-field":
+          return { tag: "PROJ" };
+        case "empty":
+          return { tag: "EMPTY" };
         case "#t":
           return { tag: "BOOL", val: true };
         case "#f":

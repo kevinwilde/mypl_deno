@@ -6,7 +6,7 @@ type Term = (
   | { tag: "TmBool"; val: boolean }
   | { tag: "TmInt"; val: number }
   | { tag: "TmStr"; val: string }
-  | { tag: "TmEmpty" } // TODO sep term or global var?
+  | { tag: "TmEmpty" }
   | { tag: "TmCons"; car: TermWithInfo; cdr: TermWithInfo }
   | { tag: "TmRecord"; fields: Record<string, TermWithInfo> }
   | { tag: "TmProj"; record: TermWithInfo; fieldName: string } // record should be TmRecord when well-formed
@@ -46,8 +46,12 @@ export function createAST(lexer: Lexer): TermWithInfo {
       case "ARROW":
       case "LET":
       case "IF":
+      case "REF":
+      case "PROJ":
       case "LAMBDA":
         throw new ParseError(`Unexpected token: ${cur.token.tag}`, cur.info);
+      case "EMPTY":
+        return { info: cur.info, term: { tag: "TmEmpty" } };
       case "BOOL":
         return { info: cur.info, term: { tag: "TmBool", val: cur.token.val } };
       case "INT":
@@ -55,11 +59,6 @@ export function createAST(lexer: Lexer): TermWithInfo {
       case "STR":
         return { info: cur.info, term: { tag: "TmStr", val: cur.token.val } };
       case "IDEN": {
-        // Special cases for IDEN -- things that are their own kind of term,
-        // not TmVar
-        if (cur.token.name === "empty") {
-          return { info: cur.info, term: { tag: "TmEmpty" } };
-        }
         return { info: cur.info, term: { tag: "TmVar", name: cur.token.name } };
       }
       case "LCURLY": {
@@ -98,6 +97,7 @@ export function createAST(lexer: Lexer): TermWithInfo {
           case "RCURLY":
           case "COLON":
           case "ARROW":
+          case "EMPTY":
           case "BOOL":
           case "INT":
           case "STR":
@@ -219,68 +219,65 @@ export function createAST(lexer: Lexer): TermWithInfo {
               term: { tag: "TmIf", cond, then, else: else_ },
             };
           }
+          case "REF": {
+            const ref_ = lexer.nextToken();
+            const refVal = createAST(lexer);
+            const closeParen = lexer.nextToken();
+            if (closeParen === null) {
+              throw new EOFError();
+            }
+            if (closeParen.token.tag !== "RPAREN") {
+              throw new ParseError(
+                `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
+                closeParen.info,
+              );
+            }
+            return {
+              info: {
+                startIdx: cur.info.startIdx,
+                endIdx: closeParen.info.endIdx,
+              },
+              term: { tag: "TmRef", val: refVal },
+            };
+          }
+          case "PROJ": {
+            const getField_ = lexer.nextToken();
+            const record = createAST(lexer);
+            const fieldName = lexer.nextToken();
+            if (fieldName === null) {
+              throw new EOFError();
+            }
+            // Field name must be string literal for records
+            if (fieldName.token.tag !== "STR") {
+              throw new ParseError(
+                `Unexpected token: expected field name but got ${fieldName.token.tag}`,
+                fieldName.info,
+              );
+            }
+            const closeParen = lexer.nextToken();
+            if (closeParen === null) {
+              throw new EOFError();
+            }
+            if (closeParen.token.tag !== "RPAREN") {
+              throw new ParseError(
+                `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
+                closeParen.info,
+              );
+            }
+            return {
+              info: {
+                startIdx: cur.info.startIdx,
+                endIdx: closeParen.info.endIdx,
+              },
+              term: {
+                tag: "TmProj",
+                record,
+                fieldName: fieldName.token.val,
+              },
+            };
+          }
           case "LPAREN":
           case "IDEN": {
-            // Special cases for IDEN -- things that are their own kind of term,
-            // not TmApp
-            if (nextToken.token.tag === "IDEN") {
-              if (nextToken.token.name === "ref") {
-                const ref_ = lexer.nextToken();
-                const refVal = createAST(lexer);
-                const closeParen = lexer.nextToken();
-                if (closeParen === null) {
-                  throw new EOFError();
-                }
-                if (closeParen.token.tag !== "RPAREN") {
-                  throw new ParseError(
-                    `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
-                    closeParen.info,
-                  );
-                }
-                return {
-                  info: {
-                    startIdx: cur.info.startIdx,
-                    endIdx: closeParen.info.endIdx,
-                  },
-                  term: { tag: "TmRef", val: refVal },
-                };
-              } else if (nextToken.token.name === "get-field") {
-                const getField_ = lexer.nextToken();
-                const record = createAST(lexer);
-                const fieldName = lexer.nextToken();
-                if (fieldName === null) {
-                  throw new EOFError();
-                }
-                // Field name must be string literal for records
-                if (fieldName.token.tag !== "STR") {
-                  throw new ParseError(
-                    `Unexpected token: expected field name but got ${fieldName.token.tag}`,
-                    fieldName.info,
-                  );
-                }
-                const closeParen = lexer.nextToken();
-                if (closeParen === null) {
-                  throw new EOFError();
-                }
-                if (closeParen.token.tag !== "RPAREN") {
-                  throw new ParseError(
-                    `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
-                    closeParen.info,
-                  );
-                }
-                return {
-                  info: {
-                    startIdx: cur.info.startIdx,
-                    endIdx: closeParen.info.endIdx,
-                  },
-                  term: {
-                    tag: "TmProj",
-                    record,
-                    fieldName: fieldName.token.val,
-                  },
-                };
-              }
-            }
             const func = createAST(lexer);
             const args = [];
             while (true) {
@@ -334,6 +331,9 @@ function parseTypeAnn(lexer: Lexer): TypeWithInfo {
     case "LET":
     case "IF":
     case "LAMBDA":
+    case "REF":
+    case "PROJ":
+    case "EMPTY":
     case "INT":
     case "BOOL":
     case "STR":
@@ -389,7 +389,7 @@ function parseTypeAnn(lexer: Lexer): TypeWithInfo {
       const next = lexer.nextToken();
       if (next === null) {
         throw new EOFError();
-      } else if (next.token.tag === "IDEN" && next.token.name === "ref") {
+      } else if (next.token.tag === "REF") {
         const valType = parseTypeAnn(lexer);
 
         const rparen_ = lexer.nextToken();
