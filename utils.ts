@@ -1,4 +1,5 @@
 import { typeCheck } from "./typechecker.ts";
+import { evaluate } from "./interpreter.ts";
 
 export type DiscriminateUnion<T, K extends keyof T, V extends T[K]> = T extends
   Record<K, V> ? T : never;
@@ -53,6 +54,37 @@ export const genUniqRowVar = Symbol;
 //   i++;
 //   return `?p_${i}` as any;
 // };
+
+export function printValue(v: ReturnType<typeof evaluate>): string {
+  switch (v.tag) {
+    case "TmBool":
+      return v.val ? `#t` : `#f`;
+    case "TmInt":
+      return `${v.val}`;
+    case "TmStr":
+      return `"${v.val}"`;
+    case "TmEmpty":
+      return `empty`;
+    case "TmCons":
+      return `(cons ${printValue(v.car)} ${printValue(v.cdr)})`;
+    case "TmRecord":
+      return `{${
+        Object.keys(v.fields).sort()
+          .map((k) => `${k}:${printValue(v.fields[k])}`)
+          .join(" ")
+      }}`;
+    case "TmLocation":
+      return `(ref ${printValue(v.val)})`;
+    case "TmClosure":
+      return `[CLOSURE]`; // TODO ?
+    case "TmStdlibFun":
+      return `[STD_LIB]`; // TODO ?
+    default: {
+      const _exhaustiveCheck: never = v;
+      throw new Error();
+    }
+  }
+}
 
 export function printType(t: ReturnType<typeof typeCheck>) {
   // produces stream of identifiers like

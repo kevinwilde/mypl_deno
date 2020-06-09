@@ -1,68 +1,27 @@
 import { createLexer } from "../lexer.ts";
 import { createAST } from "../parser.ts";
 import { evaluate } from "../interpreter.ts";
-import { prettyPrint, printType } from "../utils.ts";
+import { prettyPrint, printType, printValue } from "../utils.ts";
 import { typeCheck } from "../typechecker.ts";
 
-function assertResult(
-  program: string,
-  expectedResult: ReturnType<typeof evaluate>,
-) {
+function assertResult(program: string, expectedResult: string) {
   const lexer = createLexer(program);
   const ast = createAST(lexer);
   const _ = typeCheck(ast);
-  const actualResult = evaluate(ast);
-  function valuesEqual(
-    v1: ReturnType<typeof evaluate>,
-    v2: ReturnType<typeof evaluate>,
-  ): boolean {
-    switch (v1.tag) {
-      case "TmBool":
-        return v2.tag === "TmBool" && v1.val === v2.val;
-      case "TmInt":
-        return v2.tag === "TmInt" && v1.val === v2.val;
-      case "TmStr":
-        return v2.tag === "TmStr" && v1.val === v2.val;
-      case "TmEmpty":
-        return v2.tag === "TmEmpty";
-      case "TmCons":
-        return v2.tag === "TmCons" &&
-          valuesEqual(v1.car, v2.car) &&
-          valuesEqual(v1.cdr, v2.cdr);
-      case "TmRecord":
-        return v2.tag === "TmRecord" &&
-          Object.keys(v1.fields).length === Object.keys(v2.fields).length &&
-          Object.keys(v1.fields).every((k) =>
-            v2.fields[k] !== undefined &&
-            valuesEqual(v1.fields[k], v2.fields[k])
-          );
-      case "TmLocation":
-        return v2.tag === "TmLocation" && valuesEqual(v1.val, v2.val);
-      case "TmStdlibFun":
-      case "TmClosure":
-        return false; // TODO ?
-      default: {
-        const _exhaustiveCheck: never = v1;
-        throw new Error();
-      }
-    }
-  }
-  const success = valuesEqual(actualResult, expectedResult);
+  const actualResult = printValue(evaluate(ast));
+  const success = actualResult === expectedResult;
   if (!success) {
     console.log("AST:");
     console.log(prettyPrint(ast));
     console.log("Actual result:");
-    console.log(prettyPrint(actualResult));
+    console.log(actualResult);
     console.log("Expected result:");
-    console.log(prettyPrint(expectedResult));
+    console.log(expectedResult);
     throw new Error("Test failed");
   }
 }
 
-function assertType(
-  program: string,
-  expectedType: string,
-) {
+function assertType(program: string, expectedType: string) {
   const lexer = createLexer(program);
   const ast = createAST(lexer);
   const actualType = printType(typeCheck(ast));
@@ -97,49 +56,49 @@ function expectTypeError(program: string) {
 Deno.test("defining a variable (int)", () => {
   let program = "(let x 1 x)";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
 });
 
 Deno.test("defining a variable (string)", () => {
   let program = `(let x "hello" x)`;
   assertType(program, "str");
-  assertResult(program, { tag: "TmStr", val: "hello" });
+  assertResult(program, `"hello"`);
 });
 
 Deno.test("defining a variable (bool)", () => {
   let program = "(let x #t x)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
   program = "(let x #f x)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 });
 
 Deno.test("not", () => {
   let program = "(let x #t (not x))";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
   program = "(let x #f (not x))";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
 });
 
 Deno.test("and", () => {
   let program = "(let x #t (and (not x) x))";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
   program = "(let x #f (and (not x) #t))";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
 });
 
 Deno.test("or", () => {
   let program = "(let x #t (or (not x) x))";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
   program = "(let x #t (or (not x) #f))";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 });
 
 Deno.test("=", () => {
@@ -148,46 +107,46 @@ Deno.test("=", () => {
 
   program = "(= 2 2)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
   program = "(= 2 3)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 
   program = "(= #f #f)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
   program = "(= #f #t)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 
   program = `(= "hi" "hi")`;
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
   program = `(= "hi" "bye")`;
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 
   program = "(= empty empty)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
   program = "(= (cons 2 empty) (cons 2 empty))";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
   program = "(let x (cons 2 empty) (= x x))";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
 });
 
 Deno.test("calling a function (with type ann)", () => {
   let program = "((lambda (x:bool) x) #t)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
 });
 
 Deno.test("calling a function (without type ann)", () => {
   let program = "((lambda (x) x) #t)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
 });
 
 Deno.test("[TypeError] calling a function", () => {
@@ -198,19 +157,19 @@ Deno.test("[TypeError] calling a function", () => {
 Deno.test("calling a function with multiple args (with type ann)", () => {
   let program = " ((lambda (x:bool y:bool) x) #t #f)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
   program = " ((lambda (x:bool y:bool) y) #t #f)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 });
 
 Deno.test("calling a function with multiple args (without type ann)", () => {
   let program = " ((lambda (x y) x) #t #f)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
   program = " ((lambda (x y) y) #t #f)";
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 });
 
 Deno.test("[TypeError] calling a function with multiple args", () => {
@@ -223,19 +182,19 @@ Deno.test("[TypeError] calling a function with multiple args", () => {
 Deno.test("conditionals (with type ann)", () => {
   let program = "((lambda (x:bool y:int z:int) (if x y z)) #t 1 2)";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = "((lambda (x:bool y:int z:int) (if x y z)) #f 1 2)";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
 });
 
 Deno.test("conditionals (wthout type ann)", () => {
   let program = "((lambda (x y z) (if x y z)) #t 1 2)";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = "((lambda (x y z) (if x y z)) #f 1 2)";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
 });
 
 Deno.test("[TypeError] conditionals (with type ann)", () => {
@@ -255,13 +214,13 @@ Deno.test("[TypeError] conditionals (without type ann)", () => {
 Deno.test("addition (with type ann)", () => {
   let program = " (let plus (lambda (x: int y :int) (+ x y)) (plus 2 3))";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 5 });
+  assertResult(program, `5`);
 });
 
 Deno.test("addition (without type ann)", () => {
   let program = " (let plus (lambda (x y) (+ x y)) (plus 2 3))";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 5 });
+  assertResult(program, `5`);
 });
 
 Deno.test("plus fn (without type ann)", () => {
@@ -293,70 +252,53 @@ Deno.test("[TypeError] using stdlib function (without type ann)", () => {
 Deno.test("subtraction (with type ann)", () => {
   let program = " (let minus (lambda (x:int y:int) (- x y)) (minus 2 3))";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: -1 });
+  assertResult(program, `-1`);
 });
 
 Deno.test("subtraction (without type ann)", () => {
   let program = " (let minus (lambda (x y) (- x y)) (minus 2 3))";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: -1 });
+  assertResult(program, `-1`);
 });
 
 Deno.test("conditional with equality (with type ann)", () => {
   let program =
     "((lambda (w:int x:int y:int z:int) (if (= w x) y z)) 42 42 1 2)";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = "((lambda (w:int x:int y:int z:int) (if (= w x) y z)) 42 43 1 2)";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
 });
 
 Deno.test("conditional with equality (without type ann)", () => {
   let program = "((lambda (w x y z) (if (= w x) y z)) 42 42 1 2)";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = "((lambda (w x y z) (if (= w x) y z)) 42 43 1 2)";
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
 });
 
 Deno.test("string-length", () => {
   let program = `(string-length "hello")`;
   assertType(program, `int`);
-  assertResult(program, { tag: "TmInt", val: 5 });
+  assertResult(program, `5`);
 });
 
 Deno.test("string->list", () => {
   let program = `(string->list "hello")`;
   assertType(program, `(Listof str)`);
-  assertResult(program, {
-    tag: "TmCons",
-    car: { tag: "TmStr", val: "h" },
-    cdr: {
-      tag: "TmCons",
-      car: { tag: "TmStr", val: "e" },
-      cdr: {
-        tag: "TmCons",
-        car: { tag: "TmStr", val: "l" },
-        cdr: {
-          tag: "TmCons",
-          car: { tag: "TmStr", val: "l" },
-          cdr: {
-            tag: "TmCons",
-            car: { tag: "TmStr", val: "o" },
-            cdr: { tag: "TmEmpty" },
-          },
-        },
-      },
-    },
-  });
+  assertResult(
+    program,
+    `(cons "h" (cons "e" (cons "l" (cons "l" (cons "o" empty)))))`,
+  );
 });
 
 Deno.test("string-concat", () => {
   let program = `(let x (string-concat "hello" "world") x)`;
   assertType(program, "str");
-  assertResult(program, { tag: "TmStr", val: "helloworld" });
+  assertResult(program, `"helloworld"`);
 });
 
 Deno.test("closure (with type ann)", () => {
@@ -368,7 +310,7 @@ Deno.test("closure (with type ann)", () => {
          (add1 42)))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 43 });
+  assertResult(program, `43`);
 });
 
 Deno.test("closure (without type ann)", () => {
@@ -380,7 +322,7 @@ Deno.test("closure (without type ann)", () => {
          (add1 42)))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 43 });
+  assertResult(program, `43`);
 });
 
 Deno.test("[TypeError] closure (with type ann)", () => {
@@ -444,7 +386,7 @@ Deno.test("closure not fooled by later shadow - maintains env where defined (wit
       (let x 2 (add1 42)))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 43 });
+  assertResult(program, `43`);
   // Even when shadow changes the type
   program = `
   (let add1
@@ -452,7 +394,7 @@ Deno.test("closure not fooled by later shadow - maintains env where defined (wit
       (let x "hi" (add1 42)))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 43 });
+  assertResult(program, `43`);
 });
 
 Deno.test("closure not fooled by later shadow - maintains env where defined (without type ann)", () => {
@@ -462,7 +404,7 @@ Deno.test("closure not fooled by later shadow - maintains env where defined (wit
       (let x 2 (add1 42)))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 43 });
+  assertResult(program, `43`);
   // Even when shadow changes the type
   program = `
   (let add1
@@ -470,7 +412,7 @@ Deno.test("closure not fooled by later shadow - maintains env where defined (wit
       (let x "hi" (add1 42)))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 43 });
+  assertResult(program, `43`);
 });
 
 Deno.test("shadowing (with type ann)", () => {
@@ -480,7 +422,7 @@ Deno.test("shadowing (with type ann)", () => {
       (add2 42))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 44 });
+  assertResult(program, `44`);
   // Even when shadow changes the type
   program = `
   (let add2
@@ -488,7 +430,7 @@ Deno.test("shadowing (with type ann)", () => {
       (add2 42))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 44 });
+  assertResult(program, `44`);
 });
 
 Deno.test("shadowing (without type ann)", () => {
@@ -498,7 +440,7 @@ Deno.test("shadowing (without type ann)", () => {
       (add2 42))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 44 });
+  assertResult(program, `44`);
   // Even when shadow changes the type
   program = `
   (let add2
@@ -506,7 +448,7 @@ Deno.test("shadowing (without type ann)", () => {
       (add2 42))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 44 });
+  assertResult(program, `44`);
 });
 
 Deno.test("first class functions (with type ann)", () => {
@@ -518,7 +460,7 @@ Deno.test("first class functions (with type ann)", () => {
           (doTwice add1 5)))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 7 });
+  assertResult(program, `7`);
 });
 
 Deno.test("first class functions (without type ann)", () => {
@@ -530,7 +472,7 @@ Deno.test("first class functions (without type ann)", () => {
           (doTwice add1 5)))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 7 });
+  assertResult(program, `7`);
 });
 
 Deno.test("[TypeError] first class functions (with type ann)", () => {
@@ -571,7 +513,7 @@ Deno.test("[TypeError] first class functions (without type ann)", () => {
           (doTwice add1 "hi")))
   `;
   assertType(program, "str");
-  assertResult(program, { tag: "TmStr", val: "hiworldworld" });
+  assertResult(program, `"hiworldworld"`);
 });
 
 Deno.test("first class function with stdlib (with type ann)", () => {
@@ -581,14 +523,14 @@ Deno.test("first class function with stdlib (with type ann)", () => {
       (doTwice + 5 8))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 18 });
+  assertResult(program, `18`);
   program = `
   (let doTwice
       (lambda (f:(-> (str str) str) x:str y:str) (f x (f x y)))
       (doTwice string-concat "Be" " Rhexa"))
   `;
   assertType(program, "str");
-  assertResult(program, { tag: "TmStr", val: "BeBe Rhexa" });
+  assertResult(program, `"BeBe Rhexa"`);
 });
 
 Deno.test("first class function with stdlib (without type ann)", () => {
@@ -598,14 +540,14 @@ Deno.test("first class function with stdlib (without type ann)", () => {
       (doTwice + 5 8))
   `;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 18 });
+  assertResult(program, `18`);
   program = `
   (let doTwice
       (lambda (f x y) (f x (f x y)))
       (doTwice string-concat "Be" " Rhexa"))
   `;
   assertType(program, "str");
-  assertResult(program, { tag: "TmStr", val: "BeBe Rhexa" });
+  assertResult(program, `"BeBe Rhexa"`);
 });
 
 Deno.test("[TypeError] first class functions (with type ann)", () => {
@@ -672,15 +614,15 @@ Deno.test("naive factorial (with type ann)", () => {
   let program = `(let factorial ${g} factorial)`;
   assertType(program, `(-> (int) int)`);
   program = `(let factorial ${g} (factorial 0))`;
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = `(let factorial ${g} (factorial 1))`;
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = `(let factorial ${g} (factorial 2))`;
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
   program = `(let factorial ${g} (factorial 3))`;
-  assertResult(program, { tag: "TmInt", val: 6 });
+  assertResult(program, `6`);
   program = `(let factorial ${g} (factorial 4))`;
-  assertResult(program, { tag: "TmInt", val: 24 });
+  assertResult(program, `24`);
 });
 
 Deno.test("naive factorial (without type ann)", () => {
@@ -694,17 +636,17 @@ Deno.test("naive factorial (without type ann)", () => {
   assertType(program, `(-> (int) int)`);
   program = `(let factorial ${g} (factorial 0))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = `(let factorial ${g} (factorial 1))`;
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = `(let factorial ${g} (factorial 2))`;
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
   program = `(let factorial ${g} (factorial 3))`;
-  assertResult(program, { tag: "TmInt", val: 6 });
+  assertResult(program, `6`);
   program = `(let factorial ${g} (factorial 4))`;
-  assertResult(program, { tag: "TmInt", val: 24 });
+  assertResult(program, `24`);
   program = `(let factorial ${g} (+ (factorial 4) (factorial 3)))`;
-  assertResult(program, { tag: "TmInt", val: 30 });
+  assertResult(program, `30`);
 });
 
 Deno.test("recursive function that takes int returns str", () => {
@@ -718,13 +660,13 @@ Deno.test("recursive function that takes int returns str", () => {
   assertType(program, "(-> (int) str)");
   program = `(let a-n-times ${g} (a-n-times 0))`;
   assertType(program, "str");
-  assertResult(program, { tag: "TmStr", val: "" });
+  assertResult(program, `""`);
   program = `(let a-n-times ${g} (a-n-times 1))`;
-  assertResult(program, { tag: "TmStr", val: "a" });
+  assertResult(program, `"a"`);
   program = `(let a-n-times ${g} (a-n-times 2))`;
-  assertResult(program, { tag: "TmStr", val: "aa" });
+  assertResult(program, `"aa"`);
   program = `(string-concat (let a-n-times ${g} (a-n-times 2)) "b")`;
-  assertResult(program, { tag: "TmStr", val: "aab" });
+  assertResult(program, `"aab"`);
 });
 
 Deno.test("naive fibonacci", () => {
@@ -740,23 +682,23 @@ Deno.test("naive fibonacci", () => {
   assertType(program, "(-> (int) int)");
   program = `(let fibonacci ${g} (fibonacci 0))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 0 });
+  assertResult(program, `0`);
   program = `(let fibonacci ${g} (fibonacci 1))`;
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = `(let fibonacci ${g} (fibonacci 2))`;
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = `(let fibonacci ${g} (fibonacci 3))`;
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
   program = `(let fibonacci ${g} (fibonacci 4))`;
-  assertResult(program, { tag: "TmInt", val: 3 });
+  assertResult(program, `3`);
   program = `(let fibonacci ${g} (fibonacci 5))`;
-  assertResult(program, { tag: "TmInt", val: 5 });
+  assertResult(program, `5`);
   // Naive algorithm too slow
   // program = `(let fibonacci ${g} (fibonacci 50))`;
-  // assertResult(program, { tag: "TmInt", val: 12586269025 });
+  // assertResult(program, `12586269025`);
   program = `(let fibonacci ${g} (+ (fibonacci 5) (fibonacci 6)))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 13 });
+  assertResult(program, `13`);
 });
 
 Deno.test("smart fibonacci", () => {
@@ -773,19 +715,19 @@ Deno.test("smart fibonacci", () => {
   `);
   let program = fib(0);
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 0 });
+  assertResult(program, `0`);
   program = fib(1);
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = fib(2);
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = fib(3);
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
   program = fib(4);
-  assertResult(program, { tag: "TmInt", val: 3 });
+  assertResult(program, `3`);
   program = fib(5);
-  assertResult(program, { tag: "TmInt", val: 5 });
+  assertResult(program, `5`);
   program = fib(50);
-  assertResult(program, { tag: "TmInt", val: 12586269025 });
+  assertResult(program, `12586269025`);
   program = fib(`"hi"` as any);
   expectTypeError(program);
 });
@@ -820,22 +762,7 @@ Deno.test("type inference on functions with free types", () => {
 Deno.test("defining a variable (list)", () => {
   let program = `(let x (cons 1 (cons 2 (cons 3 empty))) x)`;
   assertType(program, `(Listof int)`);
-  assertResult(
-    program,
-    {
-      tag: "TmCons",
-      car: { tag: "TmInt", val: 1 },
-      cdr: {
-        tag: "TmCons",
-        car: { tag: "TmInt", val: 2 },
-        cdr: {
-          tag: "TmCons",
-          car: { tag: "TmInt", val: 3 },
-          cdr: { tag: "TmEmpty" },
-        },
-      },
-    },
-  );
+  assertResult(program, `(cons 1 (cons 2 (cons 3 empty)))`);
 });
 
 Deno.test("defining a variable (nested list)", () => {
@@ -844,27 +771,7 @@ Deno.test("defining a variable (nested list)", () => {
   assertType(program, `(Listof (Listof int))`);
   assertResult(
     program,
-    {
-      tag: "TmCons",
-      car: {
-        tag: "TmCons",
-        car: { tag: "TmInt", val: 1 },
-        cdr: {
-          tag: "TmCons",
-          car: { tag: "TmInt", val: 3 },
-          cdr: { tag: "TmEmpty" },
-        },
-      },
-      cdr: {
-        tag: "TmCons",
-        car: {
-          tag: "TmCons",
-          car: { tag: "TmInt", val: 2 },
-          cdr: { tag: "TmEmpty" },
-        },
-        cdr: { tag: "TmEmpty" },
-      },
-    },
+    `(cons (cons 1 (cons 3 empty)) (cons (cons 2 empty) empty))`,
   );
 });
 
@@ -882,19 +789,16 @@ Deno.test("[TypeError] defining a variable (nested list)", () => {
 Deno.test("accessing car of list", () => {
   let program = `(car (cons 1 (cons 2 empty)))`;
   assertType(program, `int`);
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
 });
 
 Deno.test("accessing cdr of list", () => {
   let program = `(cdr (cons 1 (cons 2 empty)))`;
   assertType(program, `(Listof int)`);
-  assertResult(
-    program,
-    { tag: "TmCons", car: { tag: "TmInt", val: 2 }, cdr: { tag: "TmEmpty" } },
-  );
+  assertResult(program, `(cons 2 empty)`);
   program = `(cdr (cdr (cons 1 (cons 2 empty))))`;
   assertType(program, `(Listof int)`);
-  assertResult(program, { tag: "TmEmpty" });
+  assertResult(program, `empty`);
 });
 
 Deno.test("defining a function that takes a list (with type ann)", () => {
@@ -922,60 +826,32 @@ Deno.test("defining a function that takes a list (without type ann)", () => {
 Deno.test("calling a function that takes a list (with type ann)", () => {
   let program = "((lambda (x:(Listof int)) x) (cons 1 (cons 2 empty)))";
   assertType(program, "(Listof int)");
-  assertResult(
-    program,
-    {
-      tag: "TmCons",
-      car: { tag: "TmInt", val: 1 },
-      cdr: {
-        tag: "TmCons",
-        car: { tag: "TmInt", val: 2 },
-        cdr: { tag: "TmEmpty" },
-      },
-    },
-  );
+  assertResult(program, `(cons 1 (cons 2 empty))`);
   program = `((lambda (x:(Listof int)) (car x)) (cons 1 (cons 2 empty)))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = `((lambda (x:(Listof int)) (cdr x)) (cons 1 (cons 2 empty)))`;
   assertType(program, `(Listof int)`);
-  assertResult(
-    program,
-    { tag: "TmCons", car: { tag: "TmInt", val: 2 }, cdr: { tag: "TmEmpty" } },
-  );
+  assertResult(program, `(cons 2 empty)`);
   program =
     `((lambda (x:(Listof int)) (+ 41 (car x))) (cons 1 (cons 2 empty)))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 42 });
+  assertResult(program, `42`);
 });
 
 Deno.test("calling a function that takes a list (without type ann)", () => {
   let program = "((lambda (x) x) (cons 1 (cons 2 empty)))";
   assertType(program, "(Listof int)");
-  assertResult(
-    program,
-    {
-      tag: "TmCons",
-      car: { tag: "TmInt", val: 1 },
-      cdr: {
-        tag: "TmCons",
-        car: { tag: "TmInt", val: 2 },
-        cdr: { tag: "TmEmpty" },
-      },
-    },
-  );
+  assertResult(program, `(cons 1 (cons 2 empty))`);
   program = `((lambda (x) (car x)) (cons 1 (cons 2 empty)))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
   program = `((lambda (x) (cdr x)) (cons 1 (cons 2 empty)))`;
   assertType(program, `(Listof int)`);
-  assertResult(
-    program,
-    { tag: "TmCons", car: { tag: "TmInt", val: 2 }, cdr: { tag: "TmEmpty" } },
-  );
+  assertResult(program, `(cons 2 empty)`);
   program = `((lambda (x) (+ 41 (car x))) (cons 1 (cons 2 empty)))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 42 });
+  assertResult(program, `42`);
 });
 
 Deno.test("[TypeError] calling a function that takes a list (with type ann)", () => {
@@ -1010,32 +886,10 @@ Deno.test("recursion with lists (without type ann)", () => {
   assertType(program, "bool");
   program = g(`(map (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))`);
   assertType(program, "(Listof bool)");
-  assertResult(
-    program,
-    {
-      tag: "TmCons",
-      car: { tag: "TmBool", val: false },
-      cdr: {
-        tag: "TmCons",
-        car: { tag: "TmBool", val: true },
-        cdr: { tag: "TmEmpty" },
-      },
-    },
-  );
+  assertResult(program, `(cons #f (cons #t empty))`);
   program = g(`(map (lambda (n) (+ n 41)) (cons 1 (cons 2 empty)))`);
   assertType(program, "(Listof int)");
-  assertResult(
-    program,
-    {
-      tag: "TmCons",
-      car: { tag: "TmInt", val: 42 },
-      cdr: {
-        tag: "TmCons",
-        car: { tag: "TmInt", val: 43 },
-        cdr: { tag: "TmEmpty" },
-      },
-    },
-  );
+  assertResult(program, `(cons 42 (cons 43 empty))`);
 
   g = (call: string) => (`
     (let filter
@@ -1051,14 +905,7 @@ Deno.test("recursion with lists (without type ann)", () => {
   assertType(program, "(-> ((-> ('a) bool) (Listof 'a)) (Listof 'a))");
   program = g(`(filter (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))`);
   assertType(program, "(Listof int)");
-  assertResult(
-    program,
-    {
-      tag: "TmCons",
-      car: { tag: "TmInt", val: 2 },
-      cdr: { tag: "TmEmpty" },
-    },
-  );
+  assertResult(program, `(cons 2 empty)`);
 
   g = (call: string) => (`
     (let any
@@ -1072,56 +919,28 @@ Deno.test("recursion with lists (without type ann)", () => {
   assertType(program, "(-> ((-> ('a) bool) (Listof 'a)) bool)");
   program = g(`(any (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))`);
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
   program = g(`(any (lambda (n) (= n 3)) (cons 1 (cons 2 empty)))`);
   assertType(program, "bool");
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 });
 
 Deno.test("defining a variable (record)", () => {
   let program = `(let x {a:1 d:(if #t "yes" "no") e:#f b:2 c:"hi"} x)`;
   assertType(program, `{a:int b:int c:str d:str e:bool}`);
-  assertResult(
-    program,
-    {
-      tag: "TmRecord",
-      fields: {
-        a: { tag: "TmInt", val: 1 },
-        b: { tag: "TmInt", val: 2 },
-        c: { tag: "TmStr", val: "hi" },
-        d: { tag: "TmStr", val: "yes" },
-        e: { tag: "TmBool", val: false },
-      },
-    },
-  );
+  assertResult(program, `{a:1 b:2 c:"hi" d:"yes" e:#f}`);
 });
 
 Deno.test("nested record", () => {
   let program = `{a:1 b:(if #t "yes" "no") z: {b:2 c:"hi"}}`;
   assertType(program, `{a:int b:str z:{b:int c:str}}`);
-  assertResult(
-    program,
-    {
-      tag: "TmRecord",
-      fields: {
-        a: { tag: "TmInt", val: 1 },
-        b: { tag: "TmStr", val: "yes" },
-        z: {
-          tag: "TmRecord",
-          fields: {
-            b: { tag: "TmInt", val: 2 },
-            c: { tag: "TmStr", val: "hi" },
-          },
-        },
-      },
-    },
-  );
+  assertResult(program, `{a:1 b:"yes" z:{b:2 c:"hi"}}`);
 });
 
 Deno.test("accessing field in record", () => {
   let program = `(get-field {a:1 d:(if #t "yes" "no") e:#f b:2 c:"hi"} "a")`;
   assertType(program, `int`);
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
 });
 
 Deno.test("[TypeError] accessing non-existent field in record", () => {
@@ -1132,20 +951,11 @@ Deno.test("[TypeError] accessing non-existent field in record", () => {
 Deno.test("accessing nested field in nested record", () => {
   let program = `(get-field {a:1 b:(if #t "yes" "no") z: {b:2 c:"hi"}} "z")`;
   assertType(program, `{b:int c:str}`);
-  assertResult(
-    program,
-    {
-      tag: "TmRecord",
-      fields: {
-        b: { tag: "TmInt", val: 2 },
-        c: { tag: "TmStr", val: "hi" },
-      },
-    },
-  );
+  assertResult(program, `{b:2 c:"hi"}`);
   program =
     `(get-field (get-field {a:1 b:(if #t "yes" "no") z: {b:2 c:"hi"}} "z") "c")`;
   assertType(program, `str`);
-  assertResult(program, { tag: "TmStr", val: "hi" });
+  assertResult(program, `"hi"`);
 });
 
 Deno.test("[TypeError] accessing nested field in nested record", () => {
@@ -1177,40 +987,28 @@ Deno.test("defining a function that takes a record (without type ann)", () => {
 Deno.test("calling a function that takes a record (with type ann)", () => {
   let program = `((lambda (x:{a:int b:str}) x) {a:7 b:"hi"})`;
   assertType(program, "{a:int b:str}");
-  assertResult(
-    program,
-    {
-      tag: "TmRecord",
-      fields: { a: { tag: "TmInt", val: 7 }, b: { tag: "TmStr", val: "hi" } },
-    },
-  );
+  assertResult(program, `{a:7 b:"hi"}`);
   program = `((lambda (x:{a:int b:str}) (get-field x "a"))  {a:7 b:"hi"})`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 7 });
+  assertResult(program, `7`);
   program = `((lambda (x:{a:int b:str}) (get-field x "b")) {a:7 b:"hi"})`;
   assertType(program, "str");
-  assertResult(program, { tag: "TmStr", val: "hi" });
+  assertResult(program, `"hi"`);
 });
 
 Deno.test("calling a function that takes a record (without type ann)", () => {
   let program = `((lambda (x) x) {a:7 b:"hi"})`;
   assertType(program, "{a:int b:str}");
-  assertResult(
-    program,
-    {
-      tag: "TmRecord",
-      fields: { a: { tag: "TmInt", val: 7 }, b: { tag: "TmStr", val: "hi" } },
-    },
-  );
+  assertResult(program, `{a:7 b:"hi"}`);
   program = `((lambda (x) (get-field x "a"))  {a:7 b:"hi"})`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 7 });
+  assertResult(program, `7`);
   program = `(+ 1 ((lambda (x) (get-field x "a"))  {a:7 b:"hi"}))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 8 });
+  assertResult(program, `8`);
   program = `((lambda (x) (get-field x "b")) {a:7 b:"hi"})`;
   assertType(program, "str");
-  assertResult(program, { tag: "TmStr", val: "hi" });
+  assertResult(program, `"hi"`);
 });
 
 Deno.test("calling a function that takes a record with different shaped records", () => {
@@ -1220,7 +1018,7 @@ Deno.test("calling a function that takes a record with different shaped records"
       (+ (get-a {a:7 b:"hi"})
          (get-a {a:1 c:#f})))`;
   assertType(program, "int");
-  assertResult(program, { tag: "TmInt", val: 8 });
+  assertResult(program, `8`);
 });
 
 Deno.test("[TypeError] calling a function that takes a record (with type ann)", () => {
@@ -1249,25 +1047,18 @@ Deno.test("record with field of list of records", () => {
   assertType(program, `(-> ((Listof {d:'a})) 'a)`);
   program = `((lambda (x) (get-field (car x) "d")) (cons {c:"hi" d:#f} empty))`;
   assertType(program, `bool`);
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 
   program = `(lambda (x) (car (get-field (car x) "d")))`;
   assertType(program, `(-> ((Listof {d:(Listof 'a)})) 'a)`);
   program =
     `((lambda (x) (get-field (car x) "d")) (cons {c:"hi" d:(cons #f empty)} empty))`;
   assertType(program, `(Listof bool)`);
-  assertResult(
-    program,
-    {
-      tag: "TmCons",
-      car: { tag: "TmBool", val: false },
-      cdr: { tag: "TmEmpty" },
-    },
-  );
+  assertResult(program, `(cons #f empty)`);
   program =
     `((lambda (x) (car (get-field (car x) "d"))) (cons {c:"hi" d:(cons #f empty)} empty))`;
   assertType(program, `bool`);
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
 });
 
 Deno.test("[TypeError] record with field of list of records", () => {
@@ -1297,12 +1088,12 @@ Deno.test("hamming distance", () => {
       (hamming-distance "${str1}" "${str2}"))
   `);
   assertType(program("", ""), `int`);
-  assertResult(program("", ""), { tag: "TmInt", val: 0 });
-  assertResult(program("a", ""), { tag: "TmInt", val: -1 });
-  assertResult(program("a", "a"), { tag: "TmInt", val: 0 });
-  assertResult(program("a", "b"), { tag: "TmInt", val: 1 });
-  assertResult(program("ACCAGGG", "ACTATGG"), { tag: "TmInt", val: 2 });
-  assertResult(program("hellothere", "yellowhair"), { tag: "TmInt", val: 5 });
+  assertResult(program("", ""), `0`);
+  assertResult(program("a", ""), `-1`);
+  assertResult(program("a", "a"), `0`);
+  assertResult(program("a", "b"), `1`);
+  assertResult(program("ACCAGGG", "ACTATGG"), `2`);
+  assertResult(program("hellothere", "yellowhair"), `5`);
 });
 
 Deno.test("ref", () => {
@@ -1313,7 +1104,7 @@ Deno.test("ref", () => {
         (get-ref x)))
   `;
   assertType(program, `int`);
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
   program = `
     (let x (ref 1)
       (begin
@@ -1321,7 +1112,7 @@ Deno.test("ref", () => {
         (get-ref x)))
   `;
   assertType(program, `int`);
-  assertResult(program, { tag: "TmInt", val: 2 });
+  assertResult(program, `2`);
 });
 
 Deno.test("[TypeError] ref", () => {
@@ -1350,10 +1141,7 @@ Deno.test("ref of record", () => {
           (get-ref x))))
   `;
   assertType(program, `{a:int}`);
-  assertResult(
-    program,
-    { tag: "TmRecord", fields: { a: { tag: "TmInt", val: 2 } } },
-  );
+  assertResult(program, `{a:2}`);
 });
 
 Deno.test("[TypeError] ref of record", () => {
@@ -1374,7 +1162,7 @@ Deno.test("function taking record ref", () => {
         (get-a x)))
   `;
   assertType(program, `int`);
-  assertResult(program, { tag: "TmInt", val: 1 });
+  assertResult(program, `1`);
 });
 
 Deno.test("function taking record ref and mutating", () => {
@@ -1388,13 +1176,7 @@ Deno.test("function taking record ref and mutating", () => {
         (set-a-to-2 x)))
   `;
   assertType(program, `(ref {a:int b:str})`);
-  assertResult(program, {
-    tag: "TmLocation",
-    val: {
-      tag: "TmRecord",
-      fields: { a: { tag: "TmInt", val: 2 }, b: { tag: "TmStr", val: "hi" } },
-    },
-  });
+  assertResult(program, `(ref {a:2 b:"hi"})`);
   program = `
     (let x (ref {a:1 b:"bye"})
       (let set-a-to-2
@@ -1405,13 +1187,7 @@ Deno.test("function taking record ref and mutating", () => {
         (set-a-to-2 x)))
   `;
   assertType(program, `(ref {a:int b:str})`);
-  assertResult(program, {
-    tag: "TmLocation",
-    val: {
-      tag: "TmRecord",
-      fields: { a: { tag: "TmInt", val: 2 }, b: { tag: "TmStr", val: "bye" } },
-    },
-  });
+  assertResult(program, `(ref {a:2 b:"bye"})`);
 });
 
 Deno.test("[TypeError] function taking record ref and mutating", () => {
@@ -1441,7 +1217,7 @@ Deno.test("list contains", () => {
       (list-contains (cons 1 empty) 2))
   `;
   assertType(program, `bool`);
-  assertResult(program, { tag: "TmBool", val: false });
+  assertResult(program, `#f`);
   program = `
     (let list-contains
       (lambda (lst val)
@@ -1453,7 +1229,7 @@ Deno.test("list contains", () => {
       (list-contains (cons 1 (cons 2 empty)) 2))
   `;
   assertType(program, `bool`);
-  assertResult(program, { tag: "TmBool", val: true });
+  assertResult(program, `#t`);
 });
 
 Deno.test("Using ref to memoize last call", () => {
@@ -1479,16 +1255,7 @@ Deno.test("Using ref to memoize last call", () => {
       (list-contains my-list 2)))
   `;
   assertType(program, `{cache-hit:bool result:bool}`);
-  assertResult(
-    program,
-    {
-      tag: "TmRecord",
-      fields: {
-        "cache-hit": { tag: "TmBool", val: false },
-        result: { tag: "TmBool", val: true },
-      },
-    },
-  );
+  assertResult(program, `{cache-hit:#f result:#t}`);
 
   program = `
     (let list-contains
@@ -1514,14 +1281,5 @@ Deno.test("Using ref to memoize last call", () => {
           (list-contains my-list 2))))
   `;
   assertType(program, `{cache-hit:bool result:bool}`);
-  assertResult(
-    program,
-    {
-      tag: "TmRecord",
-      fields: {
-        "cache-hit": { tag: "TmBool", val: true },
-        result: { tag: "TmBool", val: true },
-      },
-    },
-  );
+  assertResult(program, `{cache-hit:#t result:#t}`);
 });
