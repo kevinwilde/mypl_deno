@@ -1,5 +1,6 @@
 import { typeCheck } from "./typechecker.ts";
 import { evaluate } from "./interpreter.ts";
+import { MyPLError } from "./exceptions.ts";
 
 export type DiscriminateUnion<T, K extends keyof T, V extends T[K]> = T extends
   Record<K, V> ? T : never;
@@ -144,4 +145,17 @@ export function printType(t: ReturnType<typeof typeCheck>) {
   }
 
   return helper(t);
+}
+
+export function printError(program: string, e: MyPLError) {
+  let errMsg = e.name + "\n" + e.message;
+  if (e.sourceInfo) {
+    errMsg += "\n" +
+      program.substring(e.sourceInfo.startIdx - 3, e.sourceInfo.endIdx + 3) +
+      "\n" +
+      " ".repeat(Math.min(3, e.sourceInfo.startIdx)) +
+      ("^".repeat(e.sourceInfo.endIdx - e.sourceInfo.startIdx)) +
+      " ".repeat(3);
+  }
+  return errMsg;
 }

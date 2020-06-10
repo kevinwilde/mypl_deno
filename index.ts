@@ -1,82 +1,39 @@
 import { createLexer } from "./lexer.ts";
 import { createAST } from "./parser.ts";
 import { evaluate } from "./interpreter.ts";
-import { prettyPrint } from "./utils.ts";
+import { printError, printValue } from "./utils.ts";
 import { MyPLError } from "./exceptions.ts";
 import { typeCheck } from "./typechecker.ts";
+import { existsSync } from "https://deno.land/std/fs/exists.ts";
+import { readFileStrSync } from "https://deno.land/std/fs/read_file_str.ts";
 
-/// Test
-function printTestCase(program: string) {
-  console.log("=========================================================");
-  const lexer = createLexer(program);
-  const ast = createAST(lexer);
-  // console.log(prettyPrint(ast));
-  const _ = typeCheck(ast);
-  console.log((evaluate(ast)));
-  console.log("=========================================================");
-}
-
-function printErrorTestCase(program: string) {
-  console.log("=========================================================");
+function executeProgram(program: string) {
   try {
     const lexer = createLexer(program);
     const ast = createAST(lexer);
-    // console.log(prettyPrint(ast));
     const _ = typeCheck(ast);
-    console.log((evaluate(ast)));
-    throw new Error("Program didn't error");
+    console.log(printValue((evaluate(ast))));
   } catch (e) {
     if (e instanceof MyPLError) {
-      console.log(e.name);
-      console.log(e.message);
-      if (e.sourceInfo) {
-        console.log(
-          program.substring(e.sourceInfo.startIdx - 3, e.sourceInfo.endIdx + 3),
-        );
-        console.log(
-          " ".repeat(Math.min(3, e.sourceInfo.startIdx)) +
-            ("^".repeat(e.sourceInfo.endIdx - e.sourceInfo.startIdx)) +
-            " ".repeat(3),
-        );
-      }
+      console.log(printError(program, e));
     } else {
       throw e;
     }
   }
-  console.log("=========================================================");
 }
 
-printTestCase("(let x 1 x)");
-// printTestCase("  (let y (lambda (x) (succ x)) y)");
-printTestCase("  (let y (lambda (x:int) (+ 1 x)) y)");
-printTestCase("  (let y (lambda (x:int z:int) (+ z x)) y)");
-printTestCase("  ((lambda (x:bool) x) #t)");
-printTestCase("  ((lambda (x:bool y:bool) x) #t #f)");
-printTestCase("  ((lambda (x:bool y:bool) y) #t #f)");
-printTestCase("  ((lambda (x:bool y:int z:int) (if x y z)) #t 1 2)");
-printTestCase("  ((lambda (x:bool y:int z:int) (if x y z)) #f 1 2)");
-printTestCase(`  (let plus (lambda (x:int y:int) (+ x y)) (plus 2 3))`);
-printTestCase(`  (let sub (lambda (x:int y:int) (- x y)) (sub 2 3))`);
-printTestCase(
-  `(let addN
-        (lambda (N:int) (lambda (x:int) (+ x N)))
-        (let add1
-             (addN 1)
-             (add1 42)))`,
-);
+function main() {
+  const args = Deno.args;
+  if (args.length !== 1) {
+    console.error("Usage: pass file name of file to run");
+    return;
+  }
+  const sourceFile = args[0];
+  if (!existsSync(sourceFile)) {
+    console.error(`File not found: ${sourceFile}`);
+  }
+  const program = readFileStrSync(sourceFile);
+  executeProgram(program);
+}
 
-printErrorTestCase("(let x");
-printErrorTestCase("((lambda (x: bool) x) 1)");
-printErrorTestCase("(if 1 2 3)");
-printErrorTestCase("(if #t #f 3)");
-printErrorTestCase(`(let plus (lambda (x:int y:int) (+ x y)) (plus 3))`);
-printErrorTestCase(`(let plus (lambda (x:int y:int) (+ x y)) (plus "hi" 3))`);
-printErrorTestCase(`(let plus (lambda (x:int y:int) (+ y)) (plus 2 3))`);
-printErrorTestCase(`(let plus (lambda (x:int y:int) (+ "hi" y)) (plus 2 3))`);
-printErrorTestCase(`((lambda (x:{a:int}) (get-field x "a")) {})`);
-printErrorTestCase(`((lambda (x:{a:int}) (get-field x "a")) {c: 1})`);
-printErrorTestCase(`((lambda (x) (get-field x "a")) {})`);
-printErrorTestCase(`((lambda (x) (get-field x "a")) {c: 1})`);
-printErrorTestCase(
-  `(let do-num-op (lambda (op) (op 2 3)) (do-num-op string-concat))`,
-);
+main();
