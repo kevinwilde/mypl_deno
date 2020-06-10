@@ -1021,6 +1021,19 @@ Deno.test("calling a function that takes a record with different shaped records"
   assertResult(program, `8`);
 });
 
+Deno.test("calling two functions that take different shaped record with the same record", () => {
+  let program = `
+    (let x {a: 1 b:2 c:#t}
+      (let get-a-b-sum
+        (lambda (x) (+ (get-field x "a") (get-field x "b")))
+          (let get-b-if-c
+            (lambda (x) (if (get-field x "c") (get-field x "b") -1))
+            (* (get-a-b-sum x) (get-b-if-c x)))))
+  `;
+  assertType(program, "int");
+  assertResult(program, `6`);
+});
+
 Deno.test("[TypeError] calling a function that takes a record (with type ann)", () => {
   let program = `((lambda (x:{a:int b:str}) x) {a:7})`;
   expectTypeError(program);
