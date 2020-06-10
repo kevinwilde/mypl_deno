@@ -23,36 +23,6 @@ const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
       x: DiscriminateUnion<Value, "tag", "TmBool">,
     ) => ({ tag: "TmBool", val: !(x.val) }),
   }),
-  "and": (info) => ({
-    tag: "TmStdlibFun",
-    type: {
-      tag: "TyArrow",
-      paramTypes: [
-        { info, type: { tag: "TyBool" } },
-        { info, type: { tag: "TyBool" } },
-      ],
-      returnType: { info, type: { tag: "TyBool" } },
-    },
-    impl: (
-      x: DiscriminateUnion<Value, "tag", "TmBool">,
-      y: DiscriminateUnion<Value, "tag", "TmBool">,
-    ) => ({ tag: "TmBool", val: x.val && y.val }),
-  }),
-  "or": (info) => ({
-    tag: "TmStdlibFun",
-    type: {
-      tag: "TyArrow",
-      paramTypes: [
-        { info, type: { tag: "TyBool" } },
-        { info, type: { tag: "TyBool" } },
-      ],
-      returnType: { info, type: { tag: "TyBool" } },
-    },
-    impl: (
-      x: DiscriminateUnion<Value, "tag", "TmBool">,
-      y: DiscriminateUnion<Value, "tag", "TmBool">,
-    ) => ({ tag: "TmBool", val: x.val || y.val }),
-  }),
   "+": (info) => ({
     tag: "TmStdlibFun",
     type: {

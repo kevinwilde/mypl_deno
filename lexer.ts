@@ -12,6 +12,8 @@ type Token =
       | { tag: "ARROW" }
       | { tag: "LET" }
       | { tag: "IF" }
+      | { tag: "AND" }
+      | { tag: "OR" }
       | { tag: "LAMBDA" }
       | { tag: "REF" }
       | { tag: "PROJ" }
@@ -104,6 +106,10 @@ export function createLexer(s: string): Lexer {
           return { tag: "LET" };
         case "if":
           return { tag: "IF" };
+        case "and":
+          return { tag: "AND" };
+        case "or":
+          return { tag: "OR" };
         case "lambda":
           return { tag: "LAMBDA" };
         case "ref":

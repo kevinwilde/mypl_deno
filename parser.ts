@@ -46,6 +46,8 @@ export function createAST(lexer: Lexer): TermWithInfo {
       case "ARROW":
       case "LET":
       case "IF":
+      case "AND":
+      case "OR":
       case "REF":
       case "PROJ":
       case "LAMBDA":
@@ -219,6 +221,60 @@ export function createAST(lexer: Lexer): TermWithInfo {
               term: { tag: "TmIf", cond, then, else: else_ },
             };
           }
+          case "AND": {
+            const and_ = lexer.nextToken();
+            const cond1 = createAST(lexer);
+            const cond2 = createAST(lexer);
+            const closeParen = lexer.nextToken();
+            if (closeParen === null) {
+              throw new EOFError();
+            }
+            if (closeParen.token.tag !== "RPAREN") {
+              throw new ParseError(
+                `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
+                closeParen.info,
+              );
+            }
+            return {
+              info: {
+                startIdx: cur.info.startIdx,
+                endIdx: closeParen.info.endIdx,
+              },
+              term: {
+                tag: "TmIf",
+                cond: cond1,
+                then: cond2,
+                else: cond1,
+              },
+            };
+          }
+          case "OR": {
+            const and_ = lexer.nextToken();
+            const cond1 = createAST(lexer);
+            const cond2 = createAST(lexer);
+            const closeParen = lexer.nextToken();
+            if (closeParen === null) {
+              throw new EOFError();
+            }
+            if (closeParen.token.tag !== "RPAREN") {
+              throw new ParseError(
+                `Unexpected token: expected \`)\` but got ${closeParen.token.tag}`,
+                closeParen.info,
+              );
+            }
+            return {
+              info: {
+                startIdx: cur.info.startIdx,
+                endIdx: closeParen.info.endIdx,
+              },
+              term: {
+                tag: "TmIf",
+                cond: cond1,
+                then: cond1,
+                else: cond2,
+              },
+            };
+          }
           case "REF": {
             const ref_ = lexer.nextToken();
             const refVal = createAST(lexer);
@@ -330,6 +386,8 @@ function parseTypeAnn(lexer: Lexer): TypeWithInfo {
     case "ARROW":
     case "LET":
     case "IF":
+    case "AND":
+    case "OR":
     case "LAMBDA":
     case "REF":
     case "PROJ":
