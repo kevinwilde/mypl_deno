@@ -14,6 +14,7 @@ export type Value =
   | { tag: "TmBool"; val: boolean }
   | { tag: "TmInt"; val: number }
   | { tag: "TmStr"; val: string }
+  | { tag: "TmVoid" }
   | { tag: "TmEmpty" }
   | { tag: "TmCons"; car: Value; cdr: Value }
   | { tag: "TmRecord"; fields: Record<string, Value> }

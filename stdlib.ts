@@ -88,6 +88,8 @@ const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
             if (x.tag !== y.tag) throw new Error();
             return { tag: "TmBool", val: x.val == y.val };
           }
+          case "TmVoid":
+            return { tag: "TmBool", val: y.tag === "TmVoid" };
           case "TmEmpty":
             return { tag: "TmBool", val: y.tag === "TmEmpty" };
           case "TmLocation":
@@ -274,14 +276,14 @@ const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
       type: {
         tag: "TyArrow",
         paramTypes: [refType, valType],
-        returnType: refType, // TODO return void
+        returnType: { info, type: { tag: "TyVoid" } },
       },
       impl: (
         ref: DiscriminateUnion<Value, "tag", "TmLocation">,
         val: Value,
       ) => {
         ref.val = val;
-        return ref;
+        return { tag: "TmVoid" };
       },
     };
   },
@@ -295,7 +297,7 @@ const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
       type: {
         tag: "TyArrow",
         paramTypes: [
-          { info, type: { tag: "TyId", name: genUniqTypeVar() } }, // TODO only accept void
+          { info, type: { tag: "TyId", name: genUniqTypeVar() } },
           resultType,
         ],
         returnType: resultType,

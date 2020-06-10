@@ -8,6 +8,7 @@ type Type =
   | { tag: "TyBool" }
   | { tag: "TyInt" }
   | { tag: "TyStr" }
+  | { tag: "TyVoid" }
   | { tag: "TyRef"; valType: TypeWithInfo }
   | { tag: "TyList"; elementType: TypeWithInfo }
   | { tag: "TyRecord"; rowExp: RowExpression }
@@ -336,6 +337,7 @@ function substituteInTy(tyX: symbol, tyT: Type, tyS: Type) {
       case "TyBool":
       case "TyInt":
       case "TyStr":
+      case "TyVoid":
         return tyS;
       case "TyRef":
         return {
@@ -477,6 +479,7 @@ function occursIn(tyX: symbol, tyT: Type) {
       case "TyBool":
       case "TyInt":
       case "TyStr":
+      case "TyVoid":
         return false;
       case "TyRef":
         return helper(tyT.valType.type);
@@ -549,6 +552,7 @@ function unify(constraints: Constraints) {
             case "TyBool":
             case "TyInt":
             case "TyStr":
+            case "TyVoid":
               return helper(restConstraints);
             case "TyRef": {
               if (tyT.type.tag !== "TyRef") throw new Error();

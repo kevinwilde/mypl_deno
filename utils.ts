@@ -64,6 +64,8 @@ export function printValue(v: ReturnType<typeof evaluate>): string {
       return `${v.val}`;
     case "TmStr":
       return `"${v.val}"`;
+    case "TmVoid":
+      return `void`;
     case "TmEmpty":
       return `empty`;
     case "TmCons":
@@ -117,6 +119,8 @@ export function printType(t: ReturnType<typeof typeCheck>) {
         return "int";
       case "TyStr":
         return "str";
+      case "TyVoid":
+        return "void";
       case "TyList":
         return `(Listof ${helper(t.elementType.type)})`;
       case "TyRecord":
