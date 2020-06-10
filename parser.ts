@@ -426,33 +426,10 @@ function parseTypeAnn(lexer: Lexer): TypeWithInfo {
           type: { tag: "TyList", elementType },
         };
       } else if (next.token.tag === "ARROW") {
-        const paramsOpenParen = lexer.nextToken();
-        if (paramsOpenParen === null) {
-          throw new EOFError();
-        }
-        if (paramsOpenParen.token.tag !== "LPAREN") {
-          throw new ParseError(
-            `Unexpected token: expected \`(\` but got ${paramsOpenParen.token.tag}`,
-            paramsOpenParen.info,
-          );
-        }
-        const paramTypes = [];
+        const funcTypes = [];
         while (lexer.peek() && lexer.peek()?.token.tag !== "RPAREN") {
-          paramTypes.push(parseTypeAnn(lexer));
+          funcTypes.push(parseTypeAnn(lexer));
         }
-        const paramsCloseParen = lexer.nextToken();
-        if (paramsCloseParen === null) {
-          throw new EOFError();
-        }
-        if (paramsCloseParen.token.tag !== "RPAREN") {
-          throw new ParseError(
-            `Unexpected token: expected \`)\` but got ${paramsCloseParen.token.tag}`,
-            paramsCloseParen.info,
-          );
-        }
-
-        const returnType = parseTypeAnn(lexer);
-
         const rparen_ = lexer.nextToken();
         if (rparen_ === null) {
           throw new EOFError();
@@ -463,6 +440,15 @@ function parseTypeAnn(lexer: Lexer): TypeWithInfo {
             rparen_.info,
           );
         }
+        if (funcTypes.length === 0) {
+          throw new ParseError(
+            `Unexpected token: expected function return type but got \`)\``,
+            rparen_.info,
+          );
+        }
+
+        const paramTypes = funcTypes.slice(0, funcTypes.length - 1);
+        const returnType = funcTypes[funcTypes.length - 1];
 
         return {
           info: { startIdx: cur.info.startIdx, endIdx: rparen_.info.endIdx },

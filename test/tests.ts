@@ -103,7 +103,7 @@ Deno.test("or", () => {
 
 Deno.test("=", () => {
   let program = "=";
-  assertType(program, "(-> ('a 'a) bool)");
+  assertType(program, "(-> 'a 'a bool)");
 
   program = "(= 2 2)";
   assertType(program, "bool");
@@ -225,7 +225,7 @@ Deno.test("addition (without type ann)", () => {
 
 Deno.test("plus fn (without type ann)", () => {
   let program = " (let plus (lambda (x y) (+ x y)) plus)";
-  assertType(program, "(-> (int int) int)");
+  assertType(program, "(-> int int int)");
 });
 
 Deno.test("[TypeError] stdlib function", () => {
@@ -454,7 +454,7 @@ Deno.test("shadowing (without type ann)", () => {
 Deno.test("first class functions (with type ann)", () => {
   let program = `
   (let doTwice
-      (lambda (f : (-> ( int) int) x: int) (f (f x)))
+      (lambda (f : (-> int int) x: int) (f (f x)))
       (let add1
           (lambda (x:int) (+ x 1))
           (doTwice add1 5)))
@@ -478,7 +478,7 @@ Deno.test("first class functions (without type ann)", () => {
 Deno.test("[TypeError] first class functions (with type ann)", () => {
   let program = `
   (let doTwice
-      (lambda (f : (-> ( int ) int) x: int) (f (f x)))
+      (lambda (f : (-> int  int) x: int) (f (f x)))
       (let add1
           (lambda (x:int) (+ x 1))
           (doTwice add1 "hi")))
@@ -486,7 +486,7 @@ Deno.test("[TypeError] first class functions (with type ann)", () => {
   expectTypeError(program);
   program = `
   (let doTwice
-      (lambda (f : (-> (int ) int) x: int) (f (f x)))
+      (lambda (f : (-> int  int) x: int) (f (f x)))
       (let add1
           (lambda (x:str) (string-concat x "world"))
           (doTwice add1 "hi")))
@@ -519,14 +519,14 @@ Deno.test("[TypeError] first class functions (without type ann)", () => {
 Deno.test("first class function with stdlib (with type ann)", () => {
   let program = `
   (let doTwice
-      (lambda (f:(-> (int int) int) x:int y:int) (f x (f x y)))
+      (lambda (f:(-> int int int) x:int y:int) (f x (f x y)))
       (doTwice + 5 8))
   `;
   assertType(program, "int");
   assertResult(program, `18`);
   program = `
   (let doTwice
-      (lambda (f:(-> (str str) str) x:str y:str) (f x (f x y)))
+      (lambda (f:(-> str str str) x:str y:str) (f x (f x y)))
       (doTwice string-concat "Be" " Rhexa"))
   `;
   assertType(program, "str");
@@ -553,25 +553,25 @@ Deno.test("first class function with stdlib (without type ann)", () => {
 Deno.test("[TypeError] first class functions (with type ann)", () => {
   let program = `
   (let doTwice
-    (lambda (f:(-> (int int) int) x:int y:int) (f x (f x y)))
+    (lambda (f:(-> int int int) x:int y:int) (f x (f x y)))
     (doTwice string-concat 5 8))
   `;
   expectTypeError(program);
   program = `
   (let doTwice
-    (lambda (f:(-> (int int) int) x:int y:int) (f x (f x y)))
+    (lambda (f:(-> int int int) x:int y:int) (f x (f x y)))
     (doTwice + 5 "hi"))
   `;
   expectTypeError(program);
   program = `
   (let doTwice
-    (lambda (f:(-> (str str) str) x:str y:str) (f x (f x y)))
+    (lambda (f:(-> str str str) x:str y:str) (f x (f x y)))
     (doTwice + "Be" " Rhexa"))
   `;
   expectTypeError(program);
   program = `
   (let doTwice
-    (lambda (f:(-> (str str) str) x:str y:str) (f x (f x y)))
+    (lambda (f:(-> str str str) x:str y:str) (f x (f x y)))
     (doTwice string-concat 2 " Rhexa"))
   `;
   expectTypeError(program);
@@ -612,7 +612,7 @@ Deno.test("naive factorial (with type ann)", () => {
           (* n (factorial (- n 1)))))
   `;
   let program = `(let factorial ${g} factorial)`;
-  assertType(program, `(-> (int) int)`);
+  assertType(program, `(-> int int)`);
   program = `(let factorial ${g} (factorial 0))`;
   assertResult(program, `1`);
   program = `(let factorial ${g} (factorial 1))`;
@@ -633,7 +633,7 @@ Deno.test("naive factorial (without type ann)", () => {
           (* n (factorial (- n 1)))))
   `;
   let program = `(let factorial ${g} factorial)`;
-  assertType(program, `(-> (int) int)`);
+  assertType(program, `(-> int int)`);
   program = `(let factorial ${g} (factorial 0))`;
   assertType(program, "int");
   assertResult(program, `1`);
@@ -657,7 +657,7 @@ Deno.test("recursive function that takes int returns str", () => {
           (string-concat "a" (a-n-times (- n 1)))))
   `;
   let program = `(let a-n-times ${g} a-n-times)`;
-  assertType(program, "(-> (int) str)");
+  assertType(program, "(-> int str)");
   program = `(let a-n-times ${g} (a-n-times 0))`;
   assertType(program, "str");
   assertResult(program, `""`);
@@ -679,7 +679,7 @@ Deno.test("naive fibonacci", () => {
             (+ (fibonacci (- n 1)) (fibonacci (- n 2))))))
   `;
   let program = `(let fibonacci ${g} fibonacci)`;
-  assertType(program, "(-> (int) int)");
+  assertType(program, "(-> int int)");
   program = `(let fibonacci ${g} (fibonacci 0))`;
   assertType(program, "int");
   assertResult(program, `0`);
@@ -734,28 +734,28 @@ Deno.test("smart fibonacci", () => {
 
 Deno.test("identity fn", () => {
   let program = "(lambda (x) x)";
-  assertType(program, "(-> ('a) 'a)");
+  assertType(program, "(-> 'a 'a)");
 });
 
 Deno.test("type inference on function", () => {
   let program = "(lambda (x y) (if x 0 1))";
-  assertType(program, "(-> (bool 'a) int)");
+  assertType(program, "(-> bool 'a int)");
 });
 
 Deno.test("type inference on functions with free types", () => {
   let program = "(lambda (x y) (if x y y))";
-  assertType(program, "(-> (bool 'a) 'a)");
+  assertType(program, "(-> bool 'a 'a)");
   program = "(lambda (x y z) (if x y z))";
-  assertType(program, "(-> (bool 'a 'a) 'a)");
+  assertType(program, "(-> bool 'a 'a 'a)");
   program = "(lambda (x y z) (if x y y))";
-  assertType(program, "(-> (bool 'a 'b) 'a)");
+  assertType(program, "(-> bool 'a 'b 'a)");
   program = "(lambda (x y z) (if x z z))";
-  assertType(program, "(-> (bool 'a 'b) 'b)");
+  assertType(program, "(-> bool 'a 'b 'b)");
   program =
     "(lambda (x y z1 z2 z3 z4 z5 z6 z7 z8 z9 z10 z11 z12 z13 z14 z15) (if x 0 y))";
   assertType(
     program,
-    "(-> (bool int 'a 'b 'c 'd 'e 'f 'g 'h 'i 'j 'k 'l 'm 'n 'o) int)",
+    "(-> bool int 'a 'b 'c 'd 'e 'f 'g 'h 'i 'j 'k 'l 'm 'n 'o int)",
   );
 });
 
@@ -803,24 +803,24 @@ Deno.test("accessing cdr of list", () => {
 
 Deno.test("defining a function that takes a list (with type ann)", () => {
   let program = "(lambda (x:(Listof int)) x)";
-  assertType(program, "(-> ((Listof int)) (Listof int))");
+  assertType(program, "(-> (Listof int) (Listof int))");
   program = `(lambda (x:(Listof int)) (car x))`;
-  assertType(program, "(-> ((Listof int)) int)");
+  assertType(program, "(-> (Listof int) int)");
   program = `(lambda (x:(Listof int)) (cdr x))`;
-  assertType(program, "(-> ((Listof int)) (Listof int))");
+  assertType(program, "(-> (Listof int) (Listof int))");
   program = `(lambda (x:(Listof int)) (+ 1 (car x)))`;
-  assertType(program, "(-> ((Listof int)) int)");
+  assertType(program, "(-> (Listof int) int)");
 });
 
 Deno.test("defining a function that takes a list (without type ann)", () => {
   let program = "(lambda (x) (empty? x))";
-  assertType(program, "(-> ((Listof 'a)) bool)");
+  assertType(program, "(-> (Listof 'a) bool)");
   program = `(lambda (x) (car x))`;
-  assertType(program, "(-> ((Listof 'a)) 'a)");
+  assertType(program, "(-> (Listof 'a) 'a)");
   program = `(lambda (x) (cdr x))`;
-  assertType(program, "(-> ((Listof 'a)) (Listof 'a))");
+  assertType(program, "(-> (Listof 'a) (Listof 'a))");
   program = `(lambda (x) (+ 1 (car x)))`;
-  assertType(program, "(-> ((Listof int)) int)");
+  assertType(program, "(-> (Listof int) int)");
 });
 
 Deno.test("calling a function that takes a list (with type ann)", () => {
@@ -878,7 +878,7 @@ Deno.test("recursion with lists (without type ann)", () => {
       ${call})
   `);
   let program = g(`map`);
-  assertType(program, "(-> ((-> ('a) 'b) (Listof 'a)) (Listof 'b))");
+  assertType(program, "(-> (-> 'a 'b) (Listof 'a) (Listof 'b))");
   program = g(`
   (let result (map (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))
       (if (empty? result) #f (car result)))
@@ -902,7 +902,7 @@ Deno.test("recursion with lists (without type ann)", () => {
       ${call})
   `);
   program = g(`filter`);
-  assertType(program, "(-> ((-> ('a) bool) (Listof 'a)) (Listof 'a))");
+  assertType(program, "(-> (-> 'a bool) (Listof 'a) (Listof 'a))");
   program = g(`(filter (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))`);
   assertType(program, "(Listof int)");
   assertResult(program, `(cons 2 empty)`);
@@ -916,7 +916,7 @@ Deno.test("recursion with lists (without type ann)", () => {
       ${call})
   `);
   program = g(`any`);
-  assertType(program, "(-> ((-> ('a) bool) (Listof 'a)) bool)");
+  assertType(program, "(-> (-> 'a bool) (Listof 'a) bool)");
   program = g(`(any (lambda (n) (= n 2)) (cons 1 (cons 2 empty)))`);
   assertType(program, "bool");
   assertResult(program, `#t`);
@@ -968,20 +968,20 @@ Deno.test("[TypeError] accessing nested field in nested record", () => {
 
 Deno.test("defining a function that takes a record (with type ann)", () => {
   let program = "(lambda (x:{a:int b:str}) x)";
-  assertType(program, "(-> ({a:int b:str}) {a:int b:str})");
+  assertType(program, "(-> {a:int b:str} {a:int b:str})");
   program = `(lambda (x:{a:int b:str}) (get-field x "a"))`;
-  assertType(program, "(-> ({a:int b:str}) int)");
+  assertType(program, "(-> {a:int b:str} int)");
   program = `(lambda (x:{a:int b:str}) (get-field x "b"))`;
-  assertType(program, "(-> ({a:int b:str}) str)");
+  assertType(program, "(-> {a:int b:str} str)");
 });
 
 Deno.test("defining a function that takes a record (without type ann)", () => {
   let program = "(lambda (x) x)";
-  assertType(program, "(-> ('a) 'a)");
+  assertType(program, "(-> 'a 'a)");
   program = `(lambda (x) (get-field x "a"))`;
-  assertType(program, "(-> ({a:'a}) 'a)");
+  assertType(program, "(-> {a:'a} 'a)");
   program = `(lambda (x) (get-field x "b"))`;
-  assertType(program, "(-> ({b:'a}) 'a)");
+  assertType(program, "(-> {b:'a} 'a)");
 });
 
 Deno.test("calling a function that takes a record (with type ann)", () => {
@@ -1057,13 +1057,13 @@ Deno.test("record with field of list of records", () => {
   assertType(program, `bool`);
 
   program = `(lambda (x) (get-field (car x) "d"))`;
-  assertType(program, `(-> ((Listof {d:'a})) 'a)`);
+  assertType(program, `(-> (Listof {d:'a}) 'a)`);
   program = `((lambda (x) (get-field (car x) "d")) (cons {c:"hi" d:#f} empty))`;
   assertType(program, `bool`);
   assertResult(program, `#f`);
 
   program = `(lambda (x) (car (get-field (car x) "d")))`;
-  assertType(program, `(-> ((Listof {d:(Listof 'a)})) 'a)`);
+  assertType(program, `(-> (Listof {d:(Listof 'a)}) 'a)`);
   program =
     `((lambda (x) (get-field (car x) "d")) (cons {c:"hi" d:(cons #f empty)} empty))`;
   assertType(program, `(Listof bool)`);

@@ -126,7 +126,7 @@ export function printType(t: ReturnType<typeof typeCheck>) {
           ).join(" ")
         }}`;
       case "TyArrow":
-        return `(-> (${(t.paramTypes.map((p) => helper(p.type))).join(" ")}) ${
+        return `(-> ${(t.paramTypes.map((p) => helper(p.type))).join(" ")} ${
           helper(t.returnType.type)
         })`;
       case "TyRef":
