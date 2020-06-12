@@ -1,6 +1,7 @@
 import { Lexer, SourceInfo } from "./lexer.ts";
 import { TypeWithInfo } from "./typechecker.ts";
 import { ParseError, EOFError } from "./exceptions.ts";
+import { assertNever } from "./utils.ts";
 
 type Term = (
   | { tag: "TmBool"; val: boolean }
@@ -354,16 +355,12 @@ export function createAST(lexer: Lexer): TermWithInfo {
               }
             }
           }
-          default: {
-            const _exhaustiveCheck: never = nextToken.token;
-            throw new Error();
-          }
+          default:
+            return assertNever(nextToken.token);
         }
       }
-      default: {
-        const _exhaustiveCheck: never = cur.token;
-        throw new Error();
-      }
+      default:
+        return assertNever(cur.token);
     }
   }
 
@@ -519,9 +516,7 @@ function parseTypeAnn(lexer: Lexer): TypeWithInfo {
         );
       }
     }
-    default: {
-      const _exhaustiveCheck: never = cur.token;
-      throw new Error();
-    }
+    default:
+      return assertNever(cur.token);
   }
 }

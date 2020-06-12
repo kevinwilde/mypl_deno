@@ -1,6 +1,6 @@
 import { Value } from "./interpreter.ts";
 import { TypeWithInfo } from "./typechecker.ts";
-import { DiscriminateUnion, genUniqTypeVar } from "./utils.ts";
+import { DiscriminateUnion, genUniqTypeVar, assertNever } from "./utils.ts";
 import { SourceInfo } from "./lexer.ts";
 
 type StdLibFun = {
@@ -98,10 +98,8 @@ const STD_LIB: Record<string, (info: SourceInfo) => StdLibFun> = {
           case "TmRecord":
           case "TmStdlibFun":
             return { tag: "TmBool", val: x === y };
-          default: {
-            const _exhaustiveCheck: never = x;
-            throw new Error();
-          }
+          default:
+            return assertNever(x);
         }
       },
     };

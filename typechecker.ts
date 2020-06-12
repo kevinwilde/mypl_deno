@@ -2,7 +2,13 @@ import { TermWithInfo } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
 import { TypeError } from "./exceptions.ts";
 import { SourceInfo } from "./lexer.ts";
-import { genUniqRowVar, genUniqTypeVar, omit, prettyPrint } from "./utils.ts";
+import {
+  genUniqRowVar,
+  genUniqTypeVar,
+  omit,
+  prettyPrint,
+  assertNever,
+} from "./utils.ts";
 
 type Type =
   | { tag: "TyBool" }
@@ -319,10 +325,8 @@ function recon(
         [newConstraint, ...constr1, ...argConstraints],
       ];
     }
-    default: {
-      const _exhaustiveCheck: never = term.term;
-      throw new Error();
-    }
+    default:
+      return assertNever(term.term);
   }
 }
 
@@ -389,10 +393,8 @@ function substituteInTy(tyX: symbol, tyT: Type, tyS: Type) {
           return tyS;
         }
       }
-      default: {
-        const _exhaustiveCheck: never = tyS;
-        throw new Error();
-      }
+      default:
+        return assertNever(tyS);
     }
   }
   return helper(tyS);
@@ -498,10 +500,8 @@ function occursIn(tyX: symbol, tyT: Type) {
           helper(tyT.returnType.type);
       case "TyId":
         return tyT.name === tyX;
-      default: {
-        const _exhaustiveCheck: never = tyT;
-        throw new Error();
-      }
+      default:
+        return assertNever(tyT);
     }
   }
   return helper(tyT);
@@ -620,10 +620,8 @@ function unify(constraints: Constraints) {
                 ],
               );
             }
-            default: {
-              const _exhaustiveCheck: never = tyS.type;
-              throw new Error();
-            }
+            default:
+              return assertNever(tyS.type);
           }
         } else if (tyS.type.tag !== tyT.type.tag) {
           throw new TypeError(
@@ -800,10 +798,8 @@ function unify(constraints: Constraints) {
           );
         }
       }
-      default: {
-        const _exhaustiveCheck: never = constraints[0];
-        throw new Error();
-      }
+      default:
+        return assertNever(constraints[0]);
     }
   }
   return helper(constraints);

@@ -5,6 +5,10 @@ import { MyPLError } from "./exceptions.ts";
 export type DiscriminateUnion<T, K extends keyof T, V extends T[K]> = T extends
   Record<K, V> ? T : never;
 
+export function assertNever(x: never): never {
+  throw new Error();
+}
+
 export function prettyPrint(obj: any) {
   function removeInfo(arg: any): any {
     if (!arg) {
@@ -82,10 +86,8 @@ export function printValue(v: ReturnType<typeof evaluate>): string {
       return `[CLOSURE]`; // TODO ?
     case "TmStdlibFun":
       return `[STD_LIB]`; // TODO ?
-    default: {
-      const _exhaustiveCheck: never = v;
-      throw new Error();
-    }
+    default:
+      return assertNever(v);
   }
 }
 
@@ -141,10 +143,8 @@ export function printType(t: ReturnType<typeof typeCheck>) {
         }
         return symbolToPrettyType.get(t.name)!;
       }
-      default: {
-        const _exhaustiveCheck: never = t;
-        throw new Error();
-      }
+      default:
+        return assertNever(t);
     }
   }
 

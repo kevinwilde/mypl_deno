@@ -1,7 +1,7 @@
 import { TermWithInfo } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
 import { RuntimeError } from "./exceptions.ts";
-import { DiscriminateUnion } from "./utils.ts";
+import { DiscriminateUnion, assertNever } from "./utils.ts";
 import { SourceInfo } from "./lexer.ts";
 
 export function evaluate(ast: TermWithInfo) {
@@ -150,10 +150,8 @@ function interpretInEnv(term: TermWithInfo, env: Environment): Value {
         throw new Error("cannot call a non function");
       }
     }
-    default: {
-      const _exhaustiveCheck: never = term.term;
-      throw new Error();
-    }
+    default:
+      return assertNever(term.term);
   }
 }
 
