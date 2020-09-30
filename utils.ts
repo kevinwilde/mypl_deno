@@ -36,27 +36,12 @@ export function prettyPrint(obj: any) {
   return JSON.stringify(removeInfo(obj), null, 2);
 }
 
-export function omit<T>(obj: Record<string, T>, keys: string[]) {
-  const result: Record<string, T> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (!keys.includes(k)) {
-      result[k] = v;
-    }
-  }
-  return result;
-}
-
 // export const genUniqTypeVar = Symbol;
-// export const genUniqRowVar = Symbol;
 // For debugging...easier to console log than symbols
 let i = 0;
 export const genUniqTypeVar = () => {
   i++;
   return `?X_${i}` as any;
-};
-export const genUniqRowVar = () => {
-  i++;
-  return `?p_${i}` as any;
 };
 
 export function printValue(v: ReturnType<typeof evaluate>): string {
@@ -73,12 +58,6 @@ export function printValue(v: ReturnType<typeof evaluate>): string {
       return `empty`;
     case "TmCons":
       return `(cons ${printValue(v.car)} ${printValue(v.cdr)})`;
-    case "TmRecord":
-      return `{${
-        Object.keys(v.fields).sort()
-          .map((k) => `${k}:${printValue(v.fields[k])}`)
-          .join(" ")
-      }}`;
     case "TmLocation":
       return `(ref ${printValue(v.val)})`;
     case "TmClosure":
@@ -124,18 +103,10 @@ export function printType(t: ReturnType<typeof typeCheck>) {
         return "void";
       case "TyList":
         return `(Listof ${helper(t.elementType)})`;
-      case "TyRecord":
-        return `{${
-          Object.keys(t.rowExp.fieldTypes).sort().map((k) =>
-            `${k}:${helper(t.rowExp.fieldTypes[k])}`
-          ).join(" ")
-        }}`;
       case "TyArrow":
         return `(-> ${(t.paramTypes.map((p) => helper(p))).join(" ")} ${
           helper(t.returnType)
         })`;
-      case "TyRef":
-        return `(ref ${helper(t.valType)})`;
       case "TyId": {
         if (!(symbolToPrettyType.has(t.name))) {
           symbolToPrettyType.set(t.name, nextFree());

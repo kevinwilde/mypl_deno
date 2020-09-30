@@ -15,7 +15,6 @@ export type Value =
   | { tag: "TmVoid" }
   | { tag: "TmEmpty" }
   | { tag: "TmCons"; car: Value; cdr: Value }
-  | { tag: "TmRecord"; fields: Record<string, Value> }
   | { tag: "TmLocation"; val: Value }
   | { tag: "TmClosure"; params: string[]; body: Term; env: Environment }
   | {
@@ -38,8 +37,6 @@ function interpretInEnv(term: Term, env: Environment): Value {
       };
     case "TmVar":
       return lookupInEnv(term.name, env);
-    case "TmRef":
-      return { tag: "TmLocation", val: interpretInEnv(term.val, env) };
     case "TmEmpty": {
       return term;
     }
@@ -49,20 +46,6 @@ function interpretInEnv(term: Term, env: Environment): Value {
         car: interpretInEnv(term.car, env),
         cdr: interpretInEnv(term.cdr, env),
       };
-    case "TmRecord": {
-      const reducedFields: Record<string, Value> = {};
-      for (const [fieldName, fieldTerm] of Object.entries(term.fields)) {
-        reducedFields[fieldName] = interpretInEnv(fieldTerm, env);
-      }
-      return { tag: "TmRecord", fields: reducedFields };
-    }
-    case "TmProj": {
-      const record = interpretInEnv(term.record, env);
-      if (record.tag !== "TmRecord") {
-        throw new Error("Error in typechecker");
-      }
-      return record.fields[term.fieldName];
-    }
     case "TmIf": {
       const condResult = interpretInEnv(term.cond, env);
       if (condResult.tag !== "TmBool") {

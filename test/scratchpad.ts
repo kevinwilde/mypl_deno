@@ -56,10 +56,6 @@ printErrorTestCase(`(let plus (lambda (x:int y:int) (+ x y)) (plus 3))`);
 printErrorTestCase(`(let plus (lambda (x:int y:int) (+ x y)) (plus "hi" 3))`);
 printErrorTestCase(`(let plus (lambda (x:int y:int) (+ y)) (plus 2 3))`);
 printErrorTestCase(`(let plus (lambda (x:int y:int) (+ "hi" y)) (plus 2 3))`);
-printErrorTestCase(`((lambda (x:{a:int}) (get-field x "a")) {})`);
-printErrorTestCase(`((lambda (x:{a:int}) (get-field x "a")) {c: 1})`);
-printErrorTestCase(`((lambda (x) (get-field x "a")) {})`);
-printErrorTestCase(`((lambda (x) (get-field x "a")) {c: 1})`);
 printErrorTestCase(
   `(let do-num-op (lambda (op) (op 2 3)) (do-num-op string-concat))`,
 );

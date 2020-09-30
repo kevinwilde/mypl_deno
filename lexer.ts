@@ -1,8 +1,6 @@
 type Token =
   | { tag: "LPAREN" }
   | { tag: "RPAREN" }
-  | { tag: "LCURLY" }
-  | { tag: "RCURLY" }
   | { tag: "COLON" }
   | { tag: "ARROW" }
   | { tag: "LET" }
@@ -10,8 +8,6 @@ type Token =
   | { tag: "AND" }
   | { tag: "OR" }
   | { tag: "LAMBDA" }
-  | { tag: "REF" }
-  | { tag: "PROJ" }
   | { tag: "EMPTY" }
   | { tag: "BOOL"; val: boolean }
   | { tag: "INT"; val: number }
@@ -87,10 +83,6 @@ export function createLexer(s: string): Lexer {
           return { tag: "LPAREN" };
         case ")":
           return { tag: "RPAREN" };
-        case "{":
-          return { tag: "LCURLY" };
-        case "}":
-          return { tag: "RCURLY" };
         case ":":
           return { tag: "COLON" };
         case "->":
@@ -105,10 +97,6 @@ export function createLexer(s: string): Lexer {
           return { tag: "OR" };
         case "lambda":
           return { tag: "LAMBDA" };
-        case "ref":
-          return { tag: "REF" };
-        case "get-field":
-          return { tag: "PROJ" };
         case "empty":
           return { tag: "EMPTY" };
         case "#t":
