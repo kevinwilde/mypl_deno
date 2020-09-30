@@ -1,10 +1,8 @@
-import { TermWithInfo } from "./parser.ts";
+import { Term } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
-import { RuntimeError } from "./exceptions.ts";
 import { DiscriminateUnion, assertNever } from "./utils.ts";
-import { SourceInfo } from "./lexer.ts";
 
-export function evaluate(ast: TermWithInfo) {
+export function evaluate(ast: Term) {
   return interpretInEnv(ast, []);
 }
 
@@ -19,71 +17,70 @@ export type Value =
   | { tag: "TmCons"; car: Value; cdr: Value }
   | { tag: "TmRecord"; fields: Record<string, Value> }
   | { tag: "TmLocation"; val: Value }
-  | { tag: "TmClosure"; params: string[]; body: TermWithInfo; env: Environment }
+  | { tag: "TmClosure"; params: string[]; body: Term; env: Environment }
   | {
     tag: "TmStdlibFun";
     impl: (...args: Value[]) => Value;
   };
 
-function interpretInEnv(term: TermWithInfo, env: Environment): Value {
-  switch (term.term.tag) {
+function interpretInEnv(term: Term, env: Environment): Value {
+  switch (term.tag) {
     case "TmBool":
     case "TmInt":
     case "TmStr":
-      return term.term;
+      return term;
     case "TmAbs":
       return {
         tag: "TmClosure",
-        params: term.term.params.map((p) => p.name),
-        body: term.term.body,
+        params: term.params.map((p) => p.name),
+        body: term.body,
         env,
       };
     case "TmVar":
-      return lookupInEnv(term.term.name, term.info, env);
+      return lookupInEnv(term.name, env);
     case "TmRef":
-      return { tag: "TmLocation", val: interpretInEnv(term.term.val, env) };
+      return { tag: "TmLocation", val: interpretInEnv(term.val, env) };
     case "TmEmpty": {
-      return term.term;
+      return term;
     }
     case "TmCons":
       return {
         tag: "TmCons",
-        car: interpretInEnv(term.term.car, env),
-        cdr: interpretInEnv(term.term.cdr, env),
+        car: interpretInEnv(term.car, env),
+        cdr: interpretInEnv(term.cdr, env),
       };
     case "TmRecord": {
       const reducedFields: Record<string, Value> = {};
-      for (const [fieldName, fieldTerm] of Object.entries(term.term.fields)) {
+      for (const [fieldName, fieldTerm] of Object.entries(term.fields)) {
         reducedFields[fieldName] = interpretInEnv(fieldTerm, env);
       }
       return { tag: "TmRecord", fields: reducedFields };
     }
     case "TmProj": {
-      const record = interpretInEnv(term.term.record, env);
+      const record = interpretInEnv(term.record, env);
       if (record.tag !== "TmRecord") {
         throw new Error("Error in typechecker");
       }
-      return record.fields[term.term.fieldName];
+      return record.fields[term.fieldName];
     }
     case "TmIf": {
-      const condResult = interpretInEnv(term.term.cond, env);
+      const condResult = interpretInEnv(term.cond, env);
       if (condResult.tag !== "TmBool") {
         // Should never happen as it's already be handled by typechecker
-        throw new RuntimeError(
+        throw new Error(
           `Expected condition to be a boolean expression but got ${condResult.tag}`,
-          term.term.cond.info,
         );
       }
       return interpretInEnv(
-        condResult.val ? term.term.then : term.term.else,
+        condResult.val ? term.then : term.else,
         env,
       );
     }
     case "TmLet": {
       let value;
-      if (term.term.val.term.tag === "TmAbs") {
+      if (term.val.tag === "TmAbs") {
         // Special case to enable recursion
-        const func = term.term.val.term;
+        const func = term.val;
         const closureEnvEntry: DiscriminateUnion<
           Value,
           "tag",
@@ -97,23 +94,23 @@ function interpretInEnv(term: TermWithInfo, env: Environment): Value {
         // Add an entry to the Environment for this closure assigned to the name
         // of the let term we are evaluationg
         const closureEnv = [
-          { name: term.term.name, value: closureEnvEntry },
+          { name: term.name, value: closureEnvEntry },
           ...env,
         ];
         // Point the env for the closure back at the env we just created,
         // forming a circular reference to allow recursion
         closureEnvEntry.env = closureEnv;
         // Now interpret the val of the let term (the function we're creating)
-        value = interpretInEnv(term.term.val, closureEnv);
+        value = interpretInEnv(term.val, closureEnv);
       } else {
-        value = interpretInEnv(term.term.val, env);
+        value = interpretInEnv(term.val, env);
       }
-      const newEnv = [{ name: term.term.name, value }, ...env];
-      return interpretInEnv(term.term.body, newEnv);
+      const newEnv = [{ name: term.name, value }, ...env];
+      return interpretInEnv(term.body, newEnv);
     }
     case "TmApp": {
-      const closure = interpretInEnv(term.term.func, env);
-      const args = term.term.args.map((a) => interpretInEnv(a, env));
+      const closure = interpretInEnv(term.func, env);
+      const args = term.args.map((a) => interpretInEnv(a, env));
       if (closure.tag === "TmClosure") {
         // // Handled by typechecker
         // if (closure.params.length !== args.length) {
@@ -151,14 +148,14 @@ function interpretInEnv(term: TermWithInfo, env: Environment): Value {
       }
     }
     default:
-      return assertNever(term.term);
+      return assertNever(term);
   }
 }
 
-function lookupInEnv(varName: string, info: SourceInfo, env: Environment) {
+function lookupInEnv(varName: string, env: Environment) {
   const envResult = env.filter((item) => item.name == varName)[0];
   if (envResult) return envResult.value;
-  const stdlibValue = lookupInStdLib(varName, info);
+  const stdlibValue = lookupInStdLib(varName);
   if (stdlibValue) return stdlibValue;
   throw new Error(`unbound variable: ${varName}`);
 }

@@ -1,53 +1,40 @@
-import { TermWithInfo } from "./parser.ts";
+import { Term } from "./parser.ts";
 import { lookupInStdLib } from "./stdlib.ts";
-import { TypeError } from "./exceptions.ts";
-import { SourceInfo } from "./lexer.ts";
 import {
   genUniqRowVar,
   genUniqTypeVar,
   omit,
-  prettyPrint,
   assertNever,
 } from "./utils.ts";
 
-type Type =
+export type Type =
   | { tag: "TyBool" }
   | { tag: "TyInt" }
   | { tag: "TyStr" }
   | { tag: "TyVoid" }
-  | { tag: "TyRef"; valType: TypeWithInfo }
-  | { tag: "TyList"; elementType: TypeWithInfo }
+  | { tag: "TyRef"; valType: Type }
+  | { tag: "TyList"; elementType: Type }
   | { tag: "TyRecord"; rowExp: RowExpression }
-  | { tag: "TyArrow"; paramTypes: TypeWithInfo[]; returnType: TypeWithInfo }
+  | { tag: "TyArrow"; paramTypes: Type[]; returnType: Type }
   | { tag: "TyId"; name: symbol };
 
 type RowExpression = {
   name: symbol | "emptyrow";
-  fieldTypes: Record<string, TypeWithInfo>;
+  fieldTypes: Record<string, Type>;
 };
 
-type RowExpressionWithInfo = {
-  info: SourceInfo;
-  row: RowExpression;
-};
-
-export type TypeWithInfo = {
-  info: SourceInfo;
-  type: Type;
-};
-
-type Context = { name: string; type: TypeWithInfo }[];
+type Context = { name: string; type: Type }[];
 
 type Constraint = {
   constraintType: "type";
-  constraint: [TypeWithInfo, TypeWithInfo];
+  constraint: [Type, Type];
 } | {
   constraintType: "row";
-  constraint: [RowExpressionWithInfo, RowExpressionWithInfo];
+  constraint: [RowExpression, RowExpression];
 };
 type Constraints = Constraint[];
 
-export function typeCheck(term: TermWithInfo) {
+export function typeCheck(term: Term) {
   const [type, constraints] = recon([], term);
   const resultConstraints = unify(constraints);
   const finalType = applySubst(
@@ -60,51 +47,41 @@ export function typeCheck(term: TermWithInfo) {
 function getTypeFromContext(
   ctx: Context,
   varName: string,
-  info: SourceInfo,
 ): Type {
   const result = ctx.find((binding) => binding.name === varName);
-  if (result) return result.type.type;
-  const stdLibResult = lookupInStdLib(varName, info);
+  if (result) return result.type;
+  const stdLibResult = lookupInStdLib(varName);
   if (stdLibResult) return stdLibResult.type;
   throw new Error(`Unbound variable: ${varName}`);
 }
 
 function recon(
   ctx: Context,
-  term: TermWithInfo,
-): [TypeWithInfo, Constraints] {
-  switch (term.term.tag) {
+  term: Term,
+): [Type, Constraints] {
+  switch (term.tag) {
     case "TmBool": {
-      return [{ info: term.info, type: { tag: "TyBool" } }, []];
+      return [{ tag: "TyBool" }, []];
     }
     case "TmInt": {
-      return [{ info: term.info, type: { tag: "TyInt" } }, []];
+      return [{ tag: "TyInt" }, []];
     }
     case "TmStr": {
-      return [{ info: term.info, type: { tag: "TyStr" } }, []];
+      return [{ tag: "TyStr" }, []];
     }
     case "TmVar": {
-      const tyVar = getTypeFromContext(ctx, term.term.name, term.info);
-      return [{ info: term.info, type: tyVar }, []];
+      const tyVar = getTypeFromContext(ctx, term.name);
+      return [tyVar, []];
     }
     case "TmRef": {
-      const [tyT1, constr1] = recon(ctx, term.term.val);
-      return [
-        { info: term.info, type: { tag: "TyRef", valType: tyT1 } },
-        constr1,
-      ];
+      const [tyT1, constr1] = recon(ctx, term.val);
+      return [{ tag: "TyRef", valType: tyT1 }, constr1];
     }
     case "TmEmpty": {
       return [
         {
-          info: term.info,
-          type: {
-            tag: "TyList",
-            elementType: {
-              info: term.info,
-              type: { tag: "TyId", name: genUniqTypeVar() },
-            },
-          },
+          tag: "TyList",
+          elementType: { tag: "TyId", name: genUniqTypeVar() },
         },
         [],
       ];
@@ -112,61 +89,46 @@ function recon(
     case "TmCons": {
       // 1 - car
       // 2 - cdr
-      const [tyT1, constr1] = recon(ctx, term.term.car);
-      const [tyT2, constr2] = recon(ctx, term.term.cdr);
+      const [tyT1, constr1] = recon(ctx, term.car);
+      const [tyT2, constr2] = recon(ctx, term.cdr);
       const newConstraints: Constraints = [
         {
           constraintType: "type",
           constraint: [ // car must be element type of cdr
-            {
-              info: tyT1.info,
-              type: {
-                tag: "TyList",
-                elementType: tyT1,
-              },
-            },
+            { tag: "TyList", elementType: tyT1 },
             tyT2,
           ],
         },
       ];
       return [
-        { info: term.info, type: { tag: "TyList", elementType: tyT1 } },
+        { tag: "TyList", elementType: tyT1 },
         [...newConstraints, ...constr1, ...constr2],
       ];
     }
     case "TmRecord": {
-      const fieldTypes: Record<string, TypeWithInfo> = {};
+      const fieldTypes: Record<string, Type> = {};
       const fieldConstraints = [];
-      for (const [fieldName, fieldTerm] of Object.entries(term.term.fields)) {
+      for (const [fieldName, fieldTerm] of Object.entries(term.fields)) {
         const [tyF, constr2] = recon(ctx, fieldTerm);
         fieldTypes[fieldName] = tyF;
         fieldConstraints.push(...constr2);
       }
       return [
-        {
-          info: term.info,
-          type: {
-            tag: "TyRecord",
-            rowExp: { name: "emptyrow", fieldTypes },
-          },
-        },
+        { tag: "TyRecord", rowExp: { name: "emptyrow", fieldTypes } },
         fieldConstraints,
       ];
     }
     case "TmProj": {
       // 1 - record
-      const [tyT1, constr1] = recon(ctx, term.term.record);
-      let resultType: TypeWithInfo;
+      const [tyT1, constr1] = recon(ctx, term.record);
+      let resultType: Type;
       if (
-        tyT1.type.tag === "TyRecord" &&
-        (term.term.fieldName in tyT1.type.rowExp.fieldTypes)
+        tyT1.tag === "TyRecord" &&
+        (term.fieldName in tyT1.rowExp.fieldTypes)
       ) {
-        resultType = tyT1.type.rowExp.fieldTypes[term.term.fieldName];
+        resultType = tyT1.rowExp.fieldTypes[term.fieldName];
       } else {
-        resultType = {
-          info: term.term.record.info, // TODO not very granular info
-          type: { tag: "TyId", name: genUniqTypeVar() },
-        };
+        resultType = { tag: "TyId", name: genUniqTypeVar() };
       }
 
       const newConstraints: Constraints = [
@@ -174,13 +136,10 @@ function recon(
           constraintType: "type",
           constraint: [
             {
-              info: term.term.record.info,
-              type: {
-                tag: "TyRecord",
-                rowExp: {
-                  name: genUniqRowVar(),
-                  fieldTypes: { [term.term.fieldName]: resultType },
-                },
+              tag: "TyRecord",
+              rowExp: {
+                name: genUniqRowVar(),
+                fieldTypes: { [term.fieldName]: resultType },
               },
             },
             tyT1,
@@ -197,16 +156,13 @@ function recon(
       // 1 - cond
       // 2 - then
       // 3 - else
-      const [tyT1, constr1] = recon(ctx, term.term.cond);
-      const [tyT2, constr2] = recon(ctx, term.term.then);
-      const [tyT3, constr3] = recon(ctx, term.term.else);
+      const [tyT1, constr1] = recon(ctx, term.cond);
+      const [tyT2, constr2] = recon(ctx, term.then);
+      const [tyT3, constr3] = recon(ctx, term.else);
       const newConstraints: Constraints = [
         {
           constraintType: "type",
-          constraint: [
-            { info: term.term.cond.info, type: { tag: "TyBool" } },
-            tyT1, // cond must have type bool
-          ],
+          constraint: [{ tag: "TyBool" }, tyT1], // cond must have type bool
         },
         {
           constraintType: "type",
@@ -223,22 +179,16 @@ function recon(
         name: genUniqTypeVar(),
       };
       const [tyT1, constr1] = recon(
-        [
-          { // Allows recursion by saying this name is in context, with type unknown as of now
-            name: term.term.name,
-            type: {
-              info: term.info,
-              type: unknownTypeForRecursion,
-            },
-          },
+        [ // Allows recursion by saying this name is in context, with type unknown as of now
+          { name: term.name, type: unknownTypeForRecursion },
           ...ctx,
         ],
-        term.term.val,
+        term.val,
       );
 
       const [tyT2, constr2] = recon(
-        [{ name: term.term.name, type: tyT1 }, ...ctx],
-        term.term.body,
+        [{ name: term.name, type: tyT1 }, ...ctx],
+        term.body,
       );
 
       return [
@@ -248,10 +198,7 @@ function recon(
           // type determined for the value of the let expression
           {
             constraintType: "type",
-            constraint: [
-              { info: term.term.val.info, type: unknownTypeForRecursion },
-              tyT1,
-            ],
+            constraint: [unknownTypeForRecursion, tyT1],
           },
           ...constr1,
           ...constr2,
@@ -262,28 +209,21 @@ function recon(
       // paramTypes
       // 2 - body
       const paramsCtx: Context = [];
-      for (const p of term.term.params) {
+      for (const p of term.params) {
         paramsCtx.push(
           {
             name: p.name,
-            type: (p.typeAnn ||
-              {
-                info: term.info,
-                type: { tag: "TyId", name: genUniqTypeVar() },
-              }),
+            type: (p.typeAnn || { tag: "TyId", name: genUniqTypeVar() }),
           },
         );
       }
       const newCtx = [...paramsCtx, ...ctx];
-      const [tyT2, constr2] = recon(newCtx, term.term.body);
+      const [tyT2, constr2] = recon(newCtx, term.body);
       return [
         {
-          info: term.info,
-          type: {
-            tag: "TyArrow",
-            paramTypes: paramsCtx.map((e) => e.type),
-            returnType: tyT2,
-          },
+          tag: "TyArrow",
+          paramTypes: paramsCtx.map((e) => e.type),
+          returnType: tyT2,
         },
         constr2,
       ];
@@ -291,11 +231,11 @@ function recon(
     case "TmApp": {
       // 1 - func
       // argTypes
-      const [tyT1, constr1] = recon(ctx, term.term.func);
+      const [tyT1, constr1] = recon(ctx, term.func);
 
       let argTypes = [];
       let argConstraints = [];
-      for (const arg of term.term.args) {
+      for (const arg of term.args) {
         const [tyT2, constr2] = recon(ctx, arg);
         argTypes.push(tyT2);
         argConstraints.push(...constr2);
@@ -307,26 +247,20 @@ function recon(
         constraint: [
           tyT1,
           {
-            info: term.info,
-            type: {
-              tag: "TyArrow",
-              paramTypes: argTypes,
-              returnType: {
-                info: term.info,
-                type: { tag: "TyId", name: tyIdSym },
-              },
-            },
+            tag: "TyArrow",
+            paramTypes: argTypes,
+            returnType: { tag: "TyId", name: tyIdSym },
           },
         ],
       };
 
       return [
-        { info: term.info, type: { tag: "TyId", name: tyIdSym } },
+        { tag: "TyId", name: tyIdSym },
         [newConstraint, ...constr1, ...argConstraints],
       ];
     }
     default:
-      return assertNever(term.term);
+      return assertNever(term);
   }
 }
 
@@ -346,28 +280,19 @@ function substituteInTy(tyX: symbol, tyT: Type, tyS: Type) {
       case "TyRef":
         return {
           tag: "TyRef",
-          valType: {
-            info: tyS.valType.info,
-            type: helper(tyS.valType.type),
-          },
+          valType: helper(tyS.valType),
         };
       case "TyList":
         return {
           tag: "TyList",
-          elementType: {
-            info: tyS.elementType.info,
-            type: helper(tyS.elementType.type),
-          },
+          elementType: helper(tyS.elementType),
         };
       case "TyRecord": {
         const substitutedFieldTypes: typeof tyS.rowExp.fieldTypes = {};
         for (
           const [fieldName, fieldType] of Object.entries(tyS.rowExp.fieldTypes)
         ) {
-          substitutedFieldTypes[fieldName] = {
-            info: fieldType.info,
-            type: helper(fieldType.type),
-          };
+          substitutedFieldTypes[fieldName] = helper(fieldType);
         }
         return {
           tag: "TyRecord",
@@ -377,14 +302,8 @@ function substituteInTy(tyX: symbol, tyT: Type, tyS: Type) {
       case "TyArrow":
         return {
           tag: "TyArrow",
-          paramTypes: tyS.paramTypes.map((p) => ({
-            info: p.info,
-            type: helper(p.type),
-          })),
-          returnType: {
-            info: tyS.returnType.info,
-            type: helper(tyS.returnType.type),
-          },
+          paramTypes: tyS.paramTypes.map((p) => helper(p)),
+          returnType: helper(tyS.returnType),
         };
       case "TyId": {
         if (tyS.name === tyX) {
@@ -420,7 +339,7 @@ function substituteInRow(
   }
 }
 
-function applySubst(constraints: Constraints, tyT: TypeWithInfo) {
+function applySubst(constraints: Constraints, tyT: Type) {
   return constraints.reverse().reduce((tyS, constraint) => {
     if (constraint.constraintType !== "type") {
       // return constraint;
@@ -430,9 +349,9 @@ function applySubst(constraints: Constraints, tyT: TypeWithInfo) {
       throw new Error();
     }
     const [tyId, tyC2] = constraint.constraint;
-    if (tyId.type.tag !== "TyId") throw new Error();
-    return substituteInTy(tyId.type.name, tyC2.type, tyS);
-  }, tyT.type);
+    if (tyId.tag !== "TyId") throw new Error();
+    return substituteInTy(tyId.name, tyC2, tyS);
+  }, tyT);
 }
 
 function substituteInConstr(
@@ -448,8 +367,8 @@ function substituteInConstr(
     return {
       constraintType: "type",
       constraint: [
-        { info: tyS1.info, type: substituteInTy(tyX, tyT, tyS1.type) },
-        { info: tyS2.info, type: substituteInTy(tyX, tyT, tyS2.type) },
+        substituteInTy(tyX, tyT, tyS1),
+        substituteInTy(tyX, tyT, tyS2),
       ],
     };
   });
@@ -468,8 +387,8 @@ function substituteInRowConstr(
     return {
       constraintType: "row",
       constraint: [
-        { info: pS1.info, row: substituteInRow(pX, pR, pS1.row) },
-        { info: pS2.info, row: substituteInRow(pX, pR, pS2.row) },
+        substituteInRow(pX, pR, pS1),
+        substituteInRow(pX, pR, pS2),
       ],
     };
   });
@@ -484,20 +403,20 @@ function occursIn(tyX: symbol, tyT: Type) {
       case "TyVoid":
         return false;
       case "TyRef":
-        return helper(tyT.valType.type);
+        return helper(tyT.valType);
       case "TyList":
-        return helper(tyT.elementType.type);
+        return helper(tyT.elementType);
       case "TyRecord": {
         for (const [_, fieldType] of Object.entries(tyT.rowExp.fieldTypes)) {
-          if (helper(fieldType.type)) {
+          if (helper(fieldType)) {
             return true;
           }
         }
         return false;
       }
       case "TyArrow":
-        return tyT.paramTypes.filter((p) => helper(p.type)).length > 0 ||
-          helper(tyT.returnType.type);
+        return tyT.paramTypes.filter((p) => helper(p)).length > 0 ||
+          helper(tyT.returnType);
       case "TyId":
         return tyT.name === tyX;
       default:
@@ -524,92 +443,88 @@ function unify(constraints: Constraints) {
         const [tyS, tyT] = constraints[0].constraint;
         const restConstraints = constraints.slice(1);
         if (
-          tyS.type.tag === "TyId" && tyT.type.tag === "TyId" &&
-          tyS.type.name === tyT.type.name
+          tyS.tag === "TyId" && tyT.tag === "TyId" &&
+          tyS.name === tyT.name
         ) {
           return helper(restConstraints);
-        } else if (tyT.type.tag === "TyId") {
-          if (occursIn(tyT.type.name, tyS.type)) {
-            throw new TypeError(`circular constraints`, tyS.info); // TODO tyT.info or tyS.info?
+        } else if (tyT.tag === "TyId") {
+          if (occursIn(tyT.name, tyS)) {
+            throw new Error(`circular constraints`);
           }
           return [
             ...helper(
-              substituteInConstr(tyT.type.name, tyS.type, restConstraints),
+              substituteInConstr(tyT.name, tyS, restConstraints),
             ),
             {
               constraintType: "type",
               constraint: [tyT, tyS],
             },
           ];
-        } else if (tyS.type.tag === "TyId") {
+        } else if (tyS.tag === "TyId") {
           const flippedConstraint: Constraint = {
             constraintType: "type",
             constraint: [tyT, tyS],
           };
           return helper([flippedConstraint, ...restConstraints]);
-        } else if (tyS.type.tag === tyT.type.tag) {
-          switch (tyS.type.tag) {
+        } else if (tyS.tag === tyT.tag) {
+          switch (tyS.tag) {
             case "TyBool":
             case "TyInt":
             case "TyStr":
             case "TyVoid":
               return helper(restConstraints);
             case "TyRef": {
-              if (tyT.type.tag !== "TyRef") throw new Error();
+              if (tyT.tag !== "TyRef") throw new Error();
               const valConstraint: Constraints[0] = {
                 constraintType: "type",
                 constraint: [
-                  tyS.type.valType,
-                  tyT.type.valType,
+                  tyS.valType,
+                  tyT.valType,
                 ],
               };
               return helper([valConstraint, ...restConstraints]);
             }
             case "TyList": {
-              if (tyT.type.tag !== "TyList") throw new Error();
+              if (tyT.tag !== "TyList") throw new Error();
               const elementConstraint: Constraints[0] = {
                 constraintType: "type",
                 constraint: [
-                  tyS.type.elementType,
-                  tyT.type.elementType,
+                  tyS.elementType,
+                  tyT.elementType,
                 ],
               };
               return helper([elementConstraint, ...restConstraints]);
             }
             case "TyRecord": {
-              if (tyT.type.tag !== "TyRecord") throw new Error();
+              if (tyT.tag !== "TyRecord") throw new Error();
               const rowsConstraint: Constraint = {
                 constraintType: "row",
-                constraint: [
-                  { info: tyS.info, row: tyS.type.rowExp },
-                  { info: tyT.info, row: tyT.type.rowExp },
-                ],
+                constraint: [tyS.rowExp, tyT.rowExp],
               };
               return helper([rowsConstraint, ...restConstraints]);
             }
             case "TyArrow": {
-              if (tyT.type.tag !== "TyArrow") throw new Error();
-              if (tyS.type.paramTypes.length !== tyT.type.paramTypes.length) {
-                throw new TypeError(
-                  `Unsolvable constraints: expected ${tyS.type.paramTypes.length} arguments but got ${tyT.type.paramTypes.length}`,
-                  tyT.info,
+              if (tyT.tag !== "TyArrow") throw new Error();
+              if (tyS.paramTypes.length !== tyT.paramTypes.length) {
+                throw new Error(
+                  `Unsolvable constraints: expected ${tyS.paramTypes.length} arguments but got ${tyT.paramTypes.length}`,
                 );
               }
               const paramConstraints: Constraints = [];
-              for (let i = 0; i < tyS.type.paramTypes.length; i++) {
+              for (let i = 0; i < tyS.paramTypes.length; i++) {
                 paramConstraints.push({
                   constraintType: "type",
                   constraint: [
-                    tyS.type.paramTypes[i],
-                    tyT.type.paramTypes[i],
+                    tyS.paramTypes[i],
+                    tyT.paramTypes[i],
                   ],
                 });
               }
               const returnConstraint: Constraints[0] = {
                 constraintType: "type",
                 constraint: [
-                  tyS.type.returnType,
-                  tyT.type.returnType,
+                  tyS.returnType,
+                  tyT.returnType,
                 ],
               };
               return helper(
@@ -621,12 +536,11 @@ function unify(constraints: Constraints) {
               );
             }
             default:
-              return assertNever(tyS.type);
+              return assertNever(tyS);
           }
-        } else if (tyS.type.tag !== tyT.type.tag) {
+        } else if (tyS.tag !== tyT.tag) {
           throw new TypeError(
-            `Unsolvable constraints, expected type ${tyS.type.tag}, but got ${tyT.type.tag}`,
-            tyT.info,
+            `Unsolvable constraints, expected type ${tyS.tag}, but got ${tyT.tag}`,
           );
         } else {
           throw new Error();
@@ -636,105 +550,97 @@ function unify(constraints: Constraints) {
         const [pR, pS] = constraints[0].constraint;
         const restConstraints = constraints.slice(1);
         if (
-          pR.row.name !== "emptyrow" &&
-          Object.entries(pR.row.fieldTypes).length === 0
+          pR.name !== "emptyrow" &&
+          Object.entries(pR.fieldTypes).length === 0
         ) {
-          if (occursInRow(pR.row.name, pS.row)) {
-            throw new TypeError(`circular constraints`, pS.info);
+          if (occursInRow(pR.name, pS)) {
+            throw new Error(`circular constraints`);
           }
           return [
             ...helper(
-              substituteInRowConstr(pR.row.name, pS.row, restConstraints),
+              substituteInRowConstr(pR.name, pS, restConstraints),
             ),
             { constraintType: "row", constraint: [pS, pR] },
           ];
         } else if (
-          pS.row.name !== "emptyrow" &&
-          Object.entries(pS.row.fieldTypes).length === 0
+          pS.name !== "emptyrow" &&
+          Object.entries(pS.fieldTypes).length === 0
         ) {
           const flippedConstraint: Constraint = {
             constraintType: "row",
             constraint: [pS, pR],
           };
           return helper([flippedConstraint, ...restConstraints]);
-        } else if (pR.row.name === "emptyrow" && pS.row.name === "emptyrow") {
+        } else if (pR.name === "emptyrow" && pS.name === "emptyrow") {
           // fields must be _exactly_ the same
           // ...same length
           if (
-            Object.entries(pR.row.fieldTypes).length !==
-              Object.entries(pS.row.fieldTypes).length
+            Object.entries(pR.fieldTypes).length !==
+              Object.entries(pS.fieldTypes).length
           ) {
-            throw new TypeError(
+            throw new Error(
               `Expected ${
-                Object.entries(pR.row.fieldTypes).length
-              } fields but got ${Object.entries(pS.row.fieldTypes).length}`,
-              pS.info,
+                Object.entries(pR.fieldTypes).length
+              } fields but got ${Object.entries(pS.fieldTypes).length}`,
             );
           }
           // ...all fields in pR must be in pS
-          for (const [fieldName, _] of Object.entries(pR.row.fieldTypes)) {
-            if (!(fieldName in pS.row.fieldTypes)) {
-              throw new TypeError(`Expected field ${fieldName}`, pS.info);
+          for (const [fieldName, _] of Object.entries(pR.fieldTypes)) {
+            if (!(fieldName in pS.fieldTypes)) {
+              throw new Error(`Expected field ${fieldName}`);
             }
           }
           // ...all fields in pS must be in pR
-          for (const [fieldName, _] of Object.entries(pS.row.fieldTypes)) {
-            if (!(fieldName in pR.row.fieldTypes)) {
-              throw new TypeError(`Expected field ${fieldName}`, pR.info);
+          for (const [fieldName, _] of Object.entries(pS.fieldTypes)) {
+            if (!(fieldName in pR.fieldTypes)) {
+              throw new Error(`Expected field ${fieldName}`);
             }
           }
 
           const fieldConstraints: Constraints = [];
-          for (const [fieldName, _] of Object.entries(pR.row.fieldTypes)) {
+          for (const [fieldName, _] of Object.entries(pR.fieldTypes)) {
             fieldConstraints.push({
               constraintType: "type",
               constraint: [
-                pR.row.fieldTypes[fieldName],
-                pS.row.fieldTypes[fieldName],
+                pR.fieldTypes[fieldName],
+                pS.fieldTypes[fieldName],
               ],
             });
           }
           return helper([...fieldConstraints, ...restConstraints]);
-        } else if (pR.row.name === "emptyrow") {
+        } else if (pR.name === "emptyrow") {
           // pS fieldTypes must be subset of pR fieldTypes
           if (
-            Object.entries(pS.row.fieldTypes).length >
-              Object.entries(pR.row.fieldTypes).length
+            Object.entries(pS.fieldTypes).length >
+              Object.entries(pR.fieldTypes).length
           ) {
-            throw new TypeError(
+            throw new Error(
               `Unsolvable constraints, fields not a subset`,
-              pS.info,
             );
           }
-          for (const [fieldName, _] of Object.entries(pS.row.fieldTypes)) {
-            if (!(fieldName in pR.row.fieldTypes)) {
-              throw new TypeError(`Expected field ${fieldName}`, pR.info);
+          for (const [fieldName, _] of Object.entries(pS.fieldTypes)) {
+            if (!(fieldName in pR.fieldTypes)) {
+              throw new Error(`Expected field ${fieldName}`);
             }
           }
 
           const commonFieldConstraints: Constraints = [];
-          for (const [fieldName, _] of Object.entries(pS.row.fieldTypes)) {
+          for (const [fieldName, _] of Object.entries(pS.fieldTypes)) {
             commonFieldConstraints.push({
               constraintType: "type",
               constraint: [
-                pR.row.fieldTypes[fieldName],
-                pS.row.fieldTypes[fieldName],
+                pR.fieldTypes[fieldName],
+                pS.fieldTypes[fieldName],
               ],
             });
           }
           const constraintOnExtraFields: Constraint = {
             constraintType: "row",
             constraint: [
-              { info: pS.info, row: { name: pS.row.name, fieldTypes: {} } },
+              { name: pS.name, fieldTypes: {} },
               {
-                info: pS.info,
-                row: {
-                  name: "emptyrow",
-                  fieldTypes: omit(
-                    pR.row.fieldTypes,
-                    Object.keys(pR.row.fieldTypes),
-                  ),
-                },
+                name: "emptyrow",
+                fieldTypes: omit(pR.fieldTypes, Object.keys(pR.fieldTypes)),
               },
             ],
           };
@@ -745,7 +651,7 @@ function unify(constraints: Constraints) {
               ...restConstraints,
             ],
           );
-        } else if (pS.row.name === "emptyrow") {
+        } else if (pS.name === "emptyrow") {
           const flippedConstraint: Constraint = {
             constraintType: "row",
             constraint: [pS, pR],
@@ -753,8 +659,8 @@ function unify(constraints: Constraints) {
           return helper([flippedConstraint, ...restConstraints]);
         } else {
           const commonFieldNames: string[] = [];
-          for (const [fieldName, _] of Object.entries(pR.row.fieldTypes)) {
-            if (fieldName in pS.row.fieldTypes) {
+          for (const [fieldName, _] of Object.entries(pR.fieldTypes)) {
+            if (fieldName in pS.fieldTypes) {
               commonFieldNames.push(fieldName);
             }
           }
@@ -764,8 +670,8 @@ function unify(constraints: Constraints) {
             commonFieldConstraints.push({
               constraintType: "type",
               constraint: [
-                pR.row.fieldTypes[fieldName],
-                pS.row.fieldTypes[fieldName],
+                pR.fieldTypes[fieldName],
+                pS.fieldTypes[fieldName],
               ],
             });
           }
@@ -773,24 +679,24 @@ function unify(constraints: Constraints) {
           const freshRowVar = genUniqRowVar();
           const pRNew: RowExpression = {
             name: freshRowVar,
-            fieldTypes: omit(pR.row.fieldTypes, commonFieldNames),
+            fieldTypes: omit(pR.fieldTypes, commonFieldNames),
           };
           const pSNew: RowExpression = {
             name: freshRowVar,
-            fieldTypes: omit(pS.row.fieldTypes, commonFieldNames),
+            fieldTypes: omit(pS.fieldTypes, commonFieldNames),
           };
-          if (occursInRow(pR.row.name, pRNew)) {
-            throw new TypeError(`circular constraints`, pR.info);
+          if (occursInRow(pR.name, pRNew)) {
+            throw new Error(`circular constraints`);
           }
-          if (occursInRow(pS.row.name, pSNew)) {
-            throw new TypeError(`circular constraints`, pS.info);
+          if (occursInRow(pS.name, pSNew)) {
+            throw new Error(`circular constraints`);
           }
 
           return helper(
             substituteInRowConstr(
-              pR.row.name,
+              pR.name,
               pRNew,
-              substituteInRowConstr(pS.row.name, pSNew, [
+              substituteInRowConstr(pS.name, pSNew, [
                 ...commonFieldConstraints,
                 ...restConstraints,
               ]),

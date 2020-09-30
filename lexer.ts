@@ -1,29 +1,22 @@
-export type SourceInfo = { startIdx: number; endIdx: number };
-
 type Token =
-  & { info: SourceInfo }
-  & {
-    token: (
-      | { tag: "LPAREN" }
-      | { tag: "RPAREN" }
-      | { tag: "LCURLY" }
-      | { tag: "RCURLY" }
-      | { tag: "COLON" }
-      | { tag: "ARROW" }
-      | { tag: "LET" }
-      | { tag: "IF" }
-      | { tag: "AND" }
-      | { tag: "OR" }
-      | { tag: "LAMBDA" }
-      | { tag: "REF" }
-      | { tag: "PROJ" }
-      | { tag: "EMPTY" }
-      | { tag: "BOOL"; val: boolean }
-      | { tag: "INT"; val: number }
-      | { tag: "STR"; val: string }
-      | { tag: "IDEN"; name: string }
-    );
-  };
+  | { tag: "LPAREN" }
+  | { tag: "RPAREN" }
+  | { tag: "LCURLY" }
+  | { tag: "RCURLY" }
+  | { tag: "COLON" }
+  | { tag: "ARROW" }
+  | { tag: "LET" }
+  | { tag: "IF" }
+  | { tag: "AND" }
+  | { tag: "OR" }
+  | { tag: "LAMBDA" }
+  | { tag: "REF" }
+  | { tag: "PROJ" }
+  | { tag: "EMPTY" }
+  | { tag: "BOOL"; val: boolean }
+  | { tag: "INT"; val: number }
+  | { tag: "STR"; val: string }
+  | { tag: "IDEN"; name: string };
 
 export type Lexer = { peek: () => Token | null; nextToken: () => Token | null };
 
@@ -31,14 +24,14 @@ export function createLexer(s: string): Lexer {
   let i = 0;
   const input = s.trim();
 
-  function calculateNextToken(): Token | null {
+  function calculateNextToken(): [Token | null, number] {
     let j = i;
     // Eat up extra whitespace before token
     while (j < input.length && /\s/.test(input[j])) {
       j++;
     }
     if (j >= input.length) {
-      return null;
+      return [null, j];
     }
 
     let char = "";
@@ -85,7 +78,7 @@ export function createLexer(s: string): Lexer {
       }
     }
 
-    function charToToken(): Token["token"] | null {
+    function charToToken(): Token | null {
       if (!char) {
         return null;
       }
@@ -134,18 +127,18 @@ export function createLexer(s: string): Lexer {
 
     const token = charToToken();
     if (!token) {
-      return null;
+      return [null, j];
     }
-    return { token, info: { startIdx, endIdx: j } };
+    return [token, j];
   }
   return {
     peek: () => {
-      return calculateNextToken();
+      return calculateNextToken()[0];
     },
     nextToken: () => {
-      const result = calculateNextToken();
+      const [result, endIdx] = calculateNextToken();
       if (result) {
-        i = result.info.endIdx;
+        i = endIdx;
       }
       return result;
     },

@@ -1,6 +1,5 @@
 import { typeCheck } from "./typechecker.ts";
 import { evaluate } from "./interpreter.ts";
-import { MyPLError } from "./exceptions.ts";
 
 export type DiscriminateUnion<T, K extends keyof T, V extends T[K]> = T extends
   Record<K, V> ? T : never;
@@ -47,18 +46,18 @@ export function omit<T>(obj: Record<string, T>, keys: string[]) {
   return result;
 }
 
-export const genUniqTypeVar = Symbol;
-export const genUniqRowVar = Symbol;
-//// For debugging...easier to console log than symbols
-// let i = 0;
-// export const genUniqTypeVar = () => {
-//   i++;
-//   return `?X_${i}` as any;
-// };
-// export const genUniqRowVar = () => {
-//   i++;
-//   return `?p_${i}` as any;
-// };
+// export const genUniqTypeVar = Symbol;
+// export const genUniqRowVar = Symbol;
+// For debugging...easier to console log than symbols
+let i = 0;
+export const genUniqTypeVar = () => {
+  i++;
+  return `?X_${i}` as any;
+};
+export const genUniqRowVar = () => {
+  i++;
+  return `?p_${i}` as any;
+};
 
 export function printValue(v: ReturnType<typeof evaluate>): string {
   switch (v.tag) {
@@ -124,19 +123,19 @@ export function printType(t: ReturnType<typeof typeCheck>) {
       case "TyVoid":
         return "void";
       case "TyList":
-        return `(Listof ${helper(t.elementType.type)})`;
+        return `(Listof ${helper(t.elementType)})`;
       case "TyRecord":
         return `{${
           Object.keys(t.rowExp.fieldTypes).sort().map((k) =>
-            `${k}:${helper(t.rowExp.fieldTypes[k].type)}`
+            `${k}:${helper(t.rowExp.fieldTypes[k])}`
           ).join(" ")
         }}`;
       case "TyArrow":
-        return `(-> ${(t.paramTypes.map((p) => helper(p.type))).join(" ")} ${
-          helper(t.returnType.type)
+        return `(-> ${(t.paramTypes.map((p) => helper(p))).join(" ")} ${
+          helper(t.returnType)
         })`;
       case "TyRef":
-        return `(ref ${helper(t.valType.type)})`;
+        return `(ref ${helper(t.valType)})`;
       case "TyId": {
         if (!(symbolToPrettyType.has(t.name))) {
           symbolToPrettyType.set(t.name, nextFree());
@@ -149,17 +148,4 @@ export function printType(t: ReturnType<typeof typeCheck>) {
   }
 
   return helper(t);
-}
-
-export function printError(program: string, e: MyPLError) {
-  let errMsg = e.name + "\n" + e.message;
-  if (e.sourceInfo) {
-    errMsg += "\n" +
-      program.substring(e.sourceInfo.startIdx - 3, e.sourceInfo.endIdx + 3) +
-      "\n" +
-      " ".repeat(Math.min(3, e.sourceInfo.startIdx)) +
-      ("^".repeat(e.sourceInfo.endIdx - e.sourceInfo.startIdx)) +
-      " ".repeat(3);
-  }
-  return errMsg;
 }

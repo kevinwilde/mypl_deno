@@ -1,8 +1,6 @@
 import { createLexer } from "../lexer.ts";
 import { createAST } from "../parser.ts";
 import { evaluate } from "../interpreter.ts";
-import { printError } from "../utils.ts";
-import { MyPLError } from "../exceptions.ts";
 import { typeCheck } from "../typechecker.ts";
 
 /// Test
@@ -26,11 +24,7 @@ function printErrorTestCase(program: string) {
     console.log((evaluate(ast)));
     throw new Error("Program didn't error");
   } catch (e) {
-    if (e instanceof MyPLError) {
-      console.log(printError(program, e));
-    } else {
-      throw e;
-    }
+    console.log(e.stack);
   }
   console.log("=========================================================");
 }
