@@ -1,11 +1,11 @@
-import { createLexer } from "../lexer.ts";
+import { Lexer } from "../lexer.ts";
 import { createAST } from "../parser.ts";
 import { evaluate } from "../interpreter.ts";
 import { prettyPrint, printType, printValue } from "../utils.ts";
 import { typeCheck } from "../typechecker.ts";
 
 function assertResult(program: string, expectedResult: string) {
-  const lexer = createLexer(program);
+  const lexer = new Lexer(program);
   const ast = createAST(lexer);
   const _ = typeCheck(ast);
   const actualResult = printValue(evaluate(ast));
@@ -22,7 +22,7 @@ function assertResult(program: string, expectedResult: string) {
 }
 
 function assertType(program: string, expectedType: string) {
-  const lexer = createLexer(program);
+  const lexer = new Lexer(program);
   const ast = createAST(lexer);
   const actualType = printType(typeCheck(ast));
   const success = actualType === expectedType;
@@ -38,7 +38,7 @@ function assertType(program: string, expectedType: string) {
 }
 
 function expectTypeError(program: string) {
-  const lexer = createLexer(program);
+  const lexer = new Lexer(program);
   const ast = createAST(lexer);
   let res;
   try {

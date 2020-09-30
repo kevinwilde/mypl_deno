@@ -1,4 +1,4 @@
-import { createLexer } from "../lexer.ts";
+import { Lexer } from "../lexer.ts";
 import { createAST } from "../parser.ts";
 import { evaluate } from "../interpreter.ts";
 import { typeCheck } from "../typechecker.ts";
@@ -6,7 +6,7 @@ import { typeCheck } from "../typechecker.ts";
 /// Test
 function printTestCase(program: string) {
   console.log("=========================================================");
-  const lexer = createLexer(program);
+  const lexer = new Lexer(program);
   const ast = createAST(lexer);
   // console.log(prettyPrint(ast));
   const _ = typeCheck(ast);
@@ -17,7 +17,7 @@ function printTestCase(program: string) {
 function printErrorTestCase(program: string) {
   console.log("=========================================================");
   try {
-    const lexer = createLexer(program);
+    const lexer = new Lexer(program);
     const ast = createAST(lexer);
     // console.log(prettyPrint(ast));
     const _ = typeCheck(ast);

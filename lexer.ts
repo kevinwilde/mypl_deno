@@ -14,14 +14,29 @@ type Token =
   | { tag: "STR"; val: string }
   | { tag: "IDEN"; name: string };
 
-export type Lexer = { peek: () => Token | null; nextToken: () => Token | null };
+export class Lexer {
+  private program: string;
+  private i = 0;
 
-export function createLexer(s: string): Lexer {
-  let i = 0;
-  const input = s.trim();
+  constructor(program: string) {
+    this.program = program.trim();
+  }
 
-  function calculateNextToken(): [Token | null, number] {
-    let j = i;
+  public peek() {
+    return this.calculateNextToken()[0];
+  }
+
+  public nextToken() {
+    const [result, endIdx] = this.calculateNextToken();
+    if (result) {
+      this.i = endIdx;
+    }
+    return result;
+  }
+
+  private calculateNextToken(): [Token | null, number] {
+    let j = this.i;
+    let input = this.program;
     // Eat up extra whitespace before token
     while (j < input.length && /\s/.test(input[j])) {
       j++;
@@ -31,7 +46,6 @@ export function createLexer(s: string): Lexer {
     }
 
     let char = "";
-    let startIdx = j;
     if (input[j] === '"') {
       // Handle strings
       char += input[j];
@@ -119,16 +133,4 @@ export function createLexer(s: string): Lexer {
     }
     return [token, j];
   }
-  return {
-    peek: () => {
-      return calculateNextToken()[0];
-    },
-    nextToken: () => {
-      const [result, endIdx] = calculateNextToken();
-      if (result) {
-        i = endIdx;
-      }
-      return result;
-    },
-  };
 }

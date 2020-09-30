@@ -1,4 +1,4 @@
-import { createLexer } from "./lexer.ts";
+import { Lexer } from "./lexer.ts";
 import { createAST } from "./parser.ts";
 import { evaluate } from "./interpreter.ts";
 import { printValue } from "./utils.ts";
@@ -7,7 +7,7 @@ import { existsSync } from "https://deno.land/std/fs/exists.ts";
 import { readFileStrSync } from "https://deno.land/std/fs/read_file_str.ts";
 
 function executeProgram(program: string) {
-  const lexer = createLexer(program);
+  const lexer = new Lexer(program);
   const ast = createAST(lexer);
   const _ = typeCheck(ast);
   console.log(printValue((evaluate(ast))));
